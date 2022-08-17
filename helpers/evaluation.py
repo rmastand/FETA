@@ -3,6 +3,7 @@ import matplotlib
 import numpy as np
 
 import torch
+import os
 
 import torch.nn as nn
 import torch.nn.functional as F
@@ -320,11 +321,15 @@ def analyze_band_transform(band, transformed_sim_samples, dat_samples, n_feature
     return auc
 
 
-def analyze_band_transforms_CURTAILS_old(band, transformed_sim_samples, dat_samples, classif_dir, n_epochs, batch_size, lr):
+def analyze_band_transforms_CURTAILS_old(band, idd, transformed_sim_samples, dat_samples, classif_dir, n_epochs, batch_size, lr, visualize = False):
     
     """adapted the CURTAINS old code so it's now band-wise"""
     
-    scores_df = oldCC.assign_scores(transformed_sim_samples, dat_samples, classif_dir, nfolds=5, use_weights=True, n_epochs=n_epochs, batch_size=batch_size, wd=None, lr=lr, use_scheduler=True, batch_norm=False, layer_norm=False, width=32, depth=3, drp=0.0, cf_activ='relu', event_id=None, truth_bkg=None)
+    classifier_band_dir = os.path.join(classif_dir, f"{band}_{idd}")
+    os.makedirs(classifier_band_dir, exist_ok=True)
+    print("On band", band, "testing", idd, "...")
+    
+    scores_df = oldCC.assign_scores(transformed_sim_samples, dat_samples, classifier_band_dir, n_epochs=n_epochs, batch_size=batch_size, lr=lr, visualize = visualize)
     
     auc = oldCC.get_classification(scores_df)
     

@@ -36,8 +36,8 @@ def activation(name):
 
 
 
-def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_epochs, device, sv_dir, plot=False,
-                   load_best=True, scheduler=None, fold=0):
+def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_epochs, device, sv_dir, plot=True,
+                   load_best=True, scheduler=None, fold=0, visualize = False):
     # Make an object to load training data
     n_workers = 0
     # TODO for some unknown reason the shuffling here will sometimes result in a radix sort error
@@ -46,6 +46,8 @@ def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_
 
     train_loss = np.zeros(n_epochs)
     valid_loss = np.zeros(n_epochs)
+
+    
     scheduler_bool = scheduler is not None
     classifier_dir = os.path.join(sv_dir, f'classifier_{fold}')
     os.makedirs(classifier_dir, exist_ok=True)
@@ -88,23 +90,27 @@ def fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_
     # Save the validation and training loss metrics
     np.save(f'{classifier_dir}/valid_loss.npy', valid_loss)
     np.save(f'{classifier_dir}/train_loss.npy', train_loss)
+    
+    if plot:
+        # Plot loss development and sic development
+        fig, ax = plt.subplots(1, 1, figsize=(7, 5))
+        ax.plot(train_loss, label='Train')
+        ax.plot(valid_loss, label='Validation')
+        ax.legend()
+        ax.set_title('Classifier Training')
+        ax.set_xlabel('epochs')
+        if visualize:
+            plt.show()
+        else:
+            fig.savefig(f'{classifier_dir}/training_{fold}.png')
+            plt.close(fig)
+    
 
     if load_best:
         best_epoch = np.argmin(valid_loss)
         # Index is counted from zero so add one to get the best epoch
         print(f'Best epoch: {best_epoch + 1} loaded')
         classifier.load(f'{classifier_dir}/{best_epoch}')
-        
-    plt.figure()
-    plt.plot(train_loss, label = "train")
-    plt.plot(valid_loss, label = "val")
-    plt.legend()
-    plt.title(fold)
-    plt.yscale("log")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.title(f"Last val loss: {valid_loss[-1]}")
-    plt.show()
 
     classifier.eval()
 
@@ -295,7 +301,7 @@ def kfold_gen(scikit_generator, X, y):
 
 def assign_scores(true_samples, template_samples, results_dir, nfolds=5, use_weights=True, n_epochs=20, batch_size=128,
                   wd=None, lr=0.001, use_scheduler=True, batch_norm=False, layer_norm=False, width=32, depth=3, drp=0.0,
-                  cf_activ='relu', event_id=None, truth_bkg=None):
+                  cf_activ='relu', event_id=None, truth_bkg=None, visualize = False):
                   
     X = np.concatenate((template_samples[:, :-1], true_samples[:, :-1]), 0)
     masses = np.concatenate((template_samples[:, -1:], true_samples[:, -1:]), 0)
@@ -344,7 +350,7 @@ def assign_scores(true_samples, template_samples, results_dir, nfolds=5, use_wei
 
         losses += [
             fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_epochs, device, results_dir,
-                           fold=fold, scheduler=scheduler)
+                           fold=fold, scheduler=scheduler, visualize = visualize)
         ]
 
     # TODO pick the epoch to take

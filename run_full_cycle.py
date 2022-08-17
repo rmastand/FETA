@@ -27,7 +27,7 @@ def main(message):
     """
     """
 
-    os.environ["CUDA_VISIBLE_DEVICES"]="0"
+    os.environ["CUDA_VISIBLE_DEVICES"]="3"
     device = cuda.get_current_device()
     device.reset()
 
@@ -53,19 +53,19 @@ def main(message):
 
     hyperparameters_dict_eval = {"n_epochs": 70,
                               "batch_size": 128,
-                              "lr": 0.0001,
+                              "lr": 0.0005,
                               "num_bootstrap": 1,
                                 "patience": 10}
+    
+    use_old_CC = False
 
 
     # directories
 
-    curtains_dir = "/global/home/users/rrmastandrea/curtains/fresh/"
+    curtains_dir = "/global/home/users/rrmastandrea/CURTAINS_SALAD/"
 
     n_features = 5
-    #dataset_config_string = f"LHCO_minmax_logmj/"
     dataset_config_string = f"LHCO_minmax_new/"
-    #dataset_config_string = f"LHCO_minmax_quantile/"
 
 
     exp_dir = os.path.join(curtains_dir, dataset_config_string)
@@ -172,8 +172,14 @@ def main(message):
     "
     "
     """
+    
+    #make_base_density_samples(hyperparameters_dict_BD, "BDSIM", exp_dir, loc_id_BD, device, bands_dict, n_features, dataset_sim, binning_scheme)
 
-    #evaluate_base_density(hyperparameters_dict_BD, "BDSIM", exp_dir, loc_id_BD, device, bands_dict, n_features, dataset_sim, binning_scheme, hyperparameters_dict_eval, use_old_CC = True)
+    BD_dir = os.path.join(exp_dir, f"saved_models_{loc_id_BD}/")
+    BD_samples_dir = os.path.join(BD_dir, f"npy_samples/")
+    print()
+    print("Starting evaluation for BD...")
+    evaluate_base_density(BD_samples_dir, hyperparameters_dict_BD, "BDSIM", exp_dir, loc_id_BD, device, bands_dict, n_features, dataset_sim, binning_scheme, hyperparameters_dict_eval, use_old_CC = use_old_CC)
 
 
     """
@@ -236,8 +242,16 @@ def main(message):
     "
     "
     """
+    
+    make_s2d_samples(hyperparameters_dict_BD, hyperparameters_dict_s2d, exp_dir, loc_id_BD, loc_id_s2d, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme)
+    
+    
 
-    evaluate_s2d_density(hyperparameters_dict_BD, hyperparameters_dict_s2d, exp_dir, loc_id_BD, loc_id_s2d, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, hyperparameters_dict_eval, use_old_CC = True)
+    print()
+    print("Starting evaluation for s2d...")
+    s2d_dir = os.path.join(BD_dir, f"saved_models_{loc_id_s2d}/")
+    s2d_samples_dir = os.path.join(s2d_dir, f"npy_samples/")
+    evaluate_s2d_density(s2d_samples_dir, hyperparameters_dict_BD, hyperparameters_dict_s2d, exp_dir, loc_id_BD, loc_id_s2d, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, hyperparameters_dict_eval, use_old_CC = use_old_CC)
     
     return(message)
 
