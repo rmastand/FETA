@@ -243,7 +243,11 @@ class ToyDataset(Dataset):
 
 
 
+def make_train_val_split(dataset, val_split):
+
+    val_size = int(val_split * len(dataset))
+    train_size = len(dataset) - val_size
+    train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
     
-   
-    
-    
+    return train_dataset, val_dataset
+

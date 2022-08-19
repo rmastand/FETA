@@ -5,7 +5,7 @@ from helpers.evaluation import *
 from helpers.plotting import *
 
 
-def create_and_train_flow(keyword, exp_dir, exp_id, transforms, base_dist, hyperparameters_dict, device, train_dataset, val_dataset, early_stop = False):
+def create_and_train_flow(keyword, flow_training_dir, transforms, base_dist, hyperparameters_dict, device, train_dataset, val_dataset, early_stop = False):
     
     """
     keyword should be BDSIM, BDDAT, or TRANS
@@ -23,7 +23,6 @@ def create_and_train_flow(keyword, exp_dir, exp_id, transforms, base_dist, hyper
     print("Making models directories ...")
     print()
 
-    flow_training_dir = os.path.join(exp_dir, f"saved_models_{exp_id}/")
     os.makedirs(flow_training_dir, exist_ok=True)
     
     # Define the flow
@@ -80,102 +79,22 @@ def create_and_train_flow(keyword, exp_dir, exp_id, transforms, base_dist, hyper
     # Plot the losses
     make_loss_png(epochs_learn, losses_learn, epochs_val_learn, losses_val_learn, loss_img_path)
     
-    
-    
-def create_and_train_flow_bidirectional(exp_dir, exp_id, transforms_s2d, flow_BD_sim, flow_BD_dat, hyperparameters_dict_s2d, device, sim_train_dataset, sim_val_dataset, dat_train_dataset, dat_val_dataset, early_stop = False):
-    
-    
-    """
-    Hard-coded to do cosine annealing LR scheduler
-    """
-    
-    """
-    "
-    "
-    CREATE FLOW
-    "
-    "
-    """
-    
-    keyword = "TRANS"
-    
-    print("Making models directories ...")
-    print()
-
-    flow_training_dir = os.path.join(exp_dir, f"saved_models_{exp_id}/")
-    os.makedirs(flow_training_dir, exist_ok=True)
-    
-    # Define the flow
-    transform = CompositeTransform(transforms_s2d)
-    flow = Flow(transform, flow_BD_sim) # the DAT base density is used manually in the loss function
-    
-    # Get the number of parameters in the flow
-    num_params = 0
-    for param in flow.parameters():
-        num_params += 1
-
-    # Write out a flow architecture
-    architecture_file = f"model_architecture_{keyword}.txt"
-
-    with open(flow_training_dir+architecture_file, "w") as arch_file:
-        arch_file.write(f"Num flow params: {num_params}\n")
-        arch_file.write(f"Using SIM base density\n")
-        arch_file.write(3*"\n")
-        arch_file.write("Transforms:\n")
-        arch_file.write(str(transforms_s2d))
-        
-    """
-    "
-    "
-    TRAIN FLOW
-    "
-    "
-    """
-    
-    print("Learning the distribution...")
-    print()
-    
-    n_epochs = hyperparameters_dict_s2d["n_epochs"]
-    lr = hyperparameters_dict_s2d["lr"]
-    weight_decay = hyperparameters_dict_s2d["weight_decay"]
-    batch_size = hyperparameters_dict_s2d["batch_size"]
-    
-    config_string = f"epochs{n_epochs}_lr{lr}_wd{weight_decay}_bs{batch_size}"
-
-    checkpoint_path = os.path.join(flow_training_dir, f"{keyword}_{config_string}")
-    loss_img_path = os.path.join(flow_training_dir, f"{keyword}_loss_{config_string}.png")
-
-    # send network to device
-    flow.to(device)
-
-    optimizer = optim.AdamW(flow.parameters(), lr = lr, weight_decay = weight_decay)
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, n_epochs, eta_min = 0)
-    cos_anneal_sched = True
-    val_sched = False
-    
-    epochs_learn, losses_learn, epochs_val_learn, losses_val_learn, best_epoch = train_flow_bidirectional(flow, flow_BD_sim, flow_BD_dat, checkpoint_path, optimizer, scheduler, cos_anneal_sched, val_sched, sim_train_dataset, sim_val_dataset, dat_train_dataset, dat_val_dataset, device, n_epochs, batch_size, early_stop = early_stop)
-
-    # Plot the losses
-    make_loss_png(epochs_learn, losses_learn, epochs_val_learn, losses_val_learn, loss_img_path)
 
 
-def make_base_density_samples(hyperparameters_dict_BD, keyword, exp_dir, exp_id, device, bands_dict, n_features, dataset_sim, binning_scheme):
+def make_base_density_samples(hyperparameters_dict_BD, keyword, flow_training_dir, flow_samples_dir, device, bands_dict, n_features, dataset_sim, binning_scheme):
     
     # Assumes keyword starts with BD
+    
+    os.makedirs(flow_samples_dir, exist_ok = True)
    
     # Load in BD model
     config_string_BD = "epochs{0}_lr{1}_wd{2}_bs{3}".format(hyperparameters_dict_BD["n_epochs"], hyperparameters_dict_BD["lr"], hyperparameters_dict_BD["weight_decay"], hyperparameters_dict_BD["batch_size"])
-
+    checkpoint_path_BD = os.path.join(flow_training_dir, f"{keyword}_{config_string_BD}")
     
-    BD_dir = os.path.join(exp_dir, f"saved_models_{exp_id}/")
-    checkpoint_path_BD = os.path.join(BD_dir, f"{keyword}_{config_string_BD}")
     print(f"Loading the {keyword} base density model ...")
+    print()
     flow_BD = torch.load(f"{checkpoint_path_BD}_best_model.pt")
     
-    # make a directory to store the npy samples
-    samples_dir = os.path.join(BD_dir, f"npy_samples/")
-    os.makedirs(samples_dir, exist_ok = True)
-  
     # send network to device
     flow_BD.to(device)
 
@@ -194,9 +113,10 @@ def make_base_density_samples(hyperparameters_dict_BD, keyword, exp_dir, exp_id,
     np.save(os.path.join(samples_dir, f"BD_SB.npy"), SB_BD_samples)
 
 
-  
+def evaluate_base_density(flow_samples_dir, hyperparameters_dict_BD, keyword, exp_dir, exp_id, device, bands_dict, n_features, dataset_sim, binning_scheme, hyperparameters_dict_eval, use_old_CC = False):
     
-def evaluate_base_density(samples_dir, hyperparameters_dict_BD, keyword, exp_dir, exp_id, device, bands_dict, n_features, dataset_sim, binning_scheme, hyperparameters_dict_eval, use_old_CC = False):
+    print("Evaluating base density ...")
+    print()
     
     # Assumes keyword starts with BD
     
@@ -296,22 +216,15 @@ def evaluate_base_density(samples_dir, hyperparameters_dict_BD, keyword, exp_dir
         results.write(f"Discrim. power for BD from BD in SB1 + SB2: {mean_AUC}; (5%, 95%) = ({lower_AUC}, {upper_AUC})\n")
 
         
-def make_s2d_samples(hyperparameters_dict_BD, hyperparameters_dict_s2d, exp_dir, exp_id_BD, exp_id_s2d, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, bidirectional = False):
-    
+
+def make_s2d_2step_samples(hyperparameters_dict_BD, hyperparameters_dict_s2d, BD_sim_training_dir, s2d_training_dir, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme):
     
     # Load in BD and s2d models
     config_string_BD = "epochs{0}_lr{1}_wd{2}_bs{3}".format(hyperparameters_dict_BD["n_epochs"], hyperparameters_dict_BD["lr"], hyperparameters_dict_BD["weight_decay"], hyperparameters_dict_BD["batch_size"])
     config_string_s2d = "epochs{0}_lr{1}_wd{2}_bs{3}".format(hyperparameters_dict_s2d["n_epochs"], hyperparameters_dict_s2d["lr"], hyperparameters_dict_s2d["weight_decay"], hyperparameters_dict_s2d["batch_size"])
 
-    
-    BD_dir = os.path.join(exp_dir, f"saved_models_{exp_id_BD}/")
-    checkpoint_path_BD = os.path.join(BD_dir, f"BDSIM_{config_string_BD}")
-    
-    if bidirectional:
-        s2d_dir = os.path.join(exp_dir, f"saved_models_{exp_id_s2d}/")
-    else: 
-        s2d_dir = os.path.join(BD_dir, f"saved_models_{exp_id_s2d}/")
-    checkpoint_path_s2d = os.path.join(s2d_dir, f"TRANS_{config_string_s2d}")
+    checkpoint_path_BD = os.path.join(BD_sim_training_dir, f"BDSIM_{config_string_BD}")
+    checkpoint_path_s2d = os.path.join(s2d_training_dir, f"TRANS_{config_string_s2d}")
         
     # make a directory to store the npy samples
     samples_dir = os.path.join(s2d_dir, f"npy_samples/")
@@ -369,21 +282,13 @@ def make_s2d_samples(hyperparameters_dict_BD, hyperparameters_dict_s2d, exp_dir,
     np.save(os.path.join(samples_dir, f"DAT_SB.npy"), SB_dat_samples)
     
 
-
-    
-def evaluate_s2d_density(samples_dir, hyperparameters_dict_BD, hyperparameters_dict_s2d, exp_dir, exp_id_BD, exp_id_s2d, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, hyperparameters_dict_eval, bidirectional = False, use_old_CC = False):
+def evaluate_s2d_2step(samples_dir, hyperparameters_dict_eval, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, use_old_CC = False):
     
     epochs_NN = hyperparameters_dict_eval["n_epochs"]
     batch_size_NN = hyperparameters_dict_eval["batch_size"]
     lr_NN = hyperparameters_dict_eval["lr"]
     patience_NN = hyperparameters_dict_eval["patience"]
     num_bootstrap = hyperparameters_dict_eval["num_bootstrap"]
-    
-    BD_dir = os.path.join(exp_dir, f"saved_models_{exp_id_BD}/")
-    if bidirectional:
-        s2d_dir = os.path.join(exp_dir, f"saved_models_{exp_id_s2d}/")
-    else: 
-        s2d_dir = os.path.join(BD_dir, f"saved_models_{exp_id_s2d}/")
     
     # Load in npy samples
     sim_samples = {}
@@ -505,34 +410,18 @@ def evaluate_s2d_density(samples_dir, hyperparameters_dict_BD, hyperparameters_d
         mean_AUC, lower_AUC, upper_AUC = get_bootstrapped_AUC(BD_band_rocs)
         results.write(f"Discrim. power for trans BD from DAT in SB1 + SB2: {mean_AUC}; (5%, 95%) = ({lower_AUC}, {upper_AUC})\n")
 
-    
-    
-def evaluate_simBD_to_datBD(hyperparameters_dict_BD_sim, hyperparameters_dict_BD_dat, exp_dir, exp_id_BD_sim, exp_id_BD_dat, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, hyperparameters_dict_eval, use_old_CC = False):
-    
-    epochs_NN = hyperparameters_dict_eval["n_epochs"]
-    batch_size_NN = hyperparameters_dict_eval["batch_size"]
-    lr_NN = hyperparameters_dict_eval["lr"]
-    patience_NN = hyperparameters_dict_eval["patience"]
-    num_bootstrap = hyperparameters_dict_eval["num_bootstrap"]
+        
+def make_s2d_direct_samples(hyperparameters_dict_BD_sim, hyperparameters_dict_BD_dat, s2d_dir, sim_training_dir, dat_training_dir, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme):
     
     # Load in BD and s2d models
     config_string_BD_sim = "epochs{0}_lr{1}_wd{2}_bs{3}".format(hyperparameters_dict_BD_sim["n_epochs"], hyperparameters_dict_BD_sim["lr"], hyperparameters_dict_BD_sim["weight_decay"], hyperparameters_dict_BD_sim["batch_size"])
     config_string_BD_dat = "epochs{0}_lr{1}_wd{2}_bs{3}".format(hyperparameters_dict_BD_dat["n_epochs"], hyperparameters_dict_BD_dat["lr"], hyperparameters_dict_BD_dat["weight_decay"], hyperparameters_dict_BD_dat["batch_size"])
 
+    checkpoint_path_BD_sim = os.path.join(sim_training_dir, f"BDSIM_{config_string_BD_sim}")
+    checkpoint_path_BD_dat = os.path.join(dat_training_dir, f"BDDAT_{config_string_BD_dat}")
     
-    BD_sim_dir = os.path.join(exp_dir, f"saved_models_{exp_id_BD_sim}/")
-    checkpoint_path_BD_sim = os.path.join(BD_sim_dir, f"BDSIM_{config_string_BD_sim}")
-    
-    BD_dat_dir = os.path.join(exp_dir, f"saved_models_{exp_id_BD_dat}/")
-    checkpoint_path_BD_dat = os.path.join(BD_dat_dir, f"BDDAT_{config_string_BD_dat}")
-    
-    s2d_dir = os.path.join(exp_dir, f"simBD_to_datBD_transform/")
+    s2d_samples_dir = os.path.join(BD_dat_training_dir, f"npy_samples/")
     os.makedirs(s2d_dir, exist_ok=True)
-        
-    if use_old_CC:
-        classifs_results_dir = os.path.join(s2d_dir, "oldCC_results/")
-        os.makedirs(classifs_results_dir, exist_ok=True)
-    
     
     print("Loading the models ...")
     print()
@@ -550,7 +439,6 @@ def evaluate_simBD_to_datBD(hyperparameters_dict_BD_sim, hyperparameters_dict_BD
         param.requires_grad = False
     flow_BD_dat.eval()
     
-
     # Apply the flow to data
     sim_samples, transformed_sim_samples, dat_samples = make_trans_samples_dict_BD_to_BD(list(bands_dict.keys()), bands_dict, dataset_sim, dataset_dat, flow_BD_sim, flow_BD_dat, device)
     # Plot all the samples
@@ -566,6 +454,57 @@ def evaluate_simBD_to_datBD(hyperparameters_dict_BD_sim, hyperparameters_dict_BD
     SB_dat_samples = SB_dat_samples.data[:,:-1]
     make_BD_transBD_plots(s2d_dir, SB_BD_samples, SB_trans_BD_samples, SB_dat_samples, binning_scheme)
     
+    # save the npy samples out
+    for band in list(bands_dict.keys()):
+        # sim
+        np.save(os.path.join(s2d_samples_dir, f"{band}_SIM.npy"), sim_samples[band])
+        # trans sim
+        np.save(os.path.join(s2d_samples_dir, f"{band}_transSIM.npy"), transformed_sim_samples[band])
+        # dat
+        np.save(os.path.join(s2d_samples_dir, f"{band}_DAT.npy"), dat_samples[band])
+                
+    # BD
+    np.save(os.path.join(s2d_samples_dir, f"BD.npy"), SB_BD_samples)
+    
+    # transBD
+    np.save(os.path.join(s2d_samples_dir, f"transBD.npy"), SB_trans_BD_samples)
+    
+    # dat_sideband
+    np.save(os.path.join(s2d_samples_dir, f"DAT_SB.npy"), SB_dat_samples)
+    
+  
+    
+    
+def evaluate_s2d_direct(s2d_samples_dir, hyperparameters_dict_eval, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, use_old_CC = False):
+    
+    epochs_NN = hyperparameters_dict_eval["n_epochs"]
+    batch_size_NN = hyperparameters_dict_eval["batch_size"]
+    lr_NN = hyperparameters_dict_eval["lr"]
+    patience_NN = hyperparameters_dict_eval["patience"]
+    num_bootstrap = hyperparameters_dict_eval["num_bootstrap"]
+    
+    # Load in npy samples
+    sim_samples = {}
+    transformed_sim_samples = {}
+    dat_samples = {}
+    
+    for band in list(bands_dict.keys()):
+        # sim
+        sim_samples[band] = np.load(os.path.join(samples_dir, f"{band}_SIM.npy"))
+        # trans sim
+        transformed_sim_samples[band] = np.load(os.path.join(samples_dir, f"{band}_transSIM.npy"))
+        # dat
+        dat_samples[band] = np.load(os.path.join(samples_dir, f"{band}_DAT.npy"))
+                
+    # BD
+    SB_BD_samples = np.load(os.path.join(samples_dir, f"BD.npy"))
+    
+    # transBD
+    SB_trans_BD_samples = np.load(os.path.join(samples_dir, f"transBD.npy"))
+    
+    # dat_sideband
+    SB_dat_samples = np.load(os.path.join(samples_dir, f"DAT_SB.npy"))
+
   
     # Now attempt to discriminate transformed SIM from DAT
 
