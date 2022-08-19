@@ -204,9 +204,10 @@ def main(message):
 
     # only uses the sim BD
     
-    #make_s2d_direct_samples(hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, s2d_dir, BD_sim_training_dir, s2d_training_dir, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme)
+    #make_s2d_samples(hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, s2d_dir, BD_sim_training_dir, BD_dat_training_dir, s2d_dir, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, direct = True)
 
-    #evaluate_s2d_direct(s2d_samples_dir, hyperparameters_dict_eval, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, use_old_CC = use_old_CC)
+
+    #evaluate_s2d(s2d_samples_dir, hyperparameters_dict_eval, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, use_old_CC = use_old_CC)
     
     return(message)
 

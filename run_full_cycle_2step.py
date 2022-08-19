@@ -133,7 +133,7 @@ def main(message):
 
     num_layers_BD_sim = 8
     num_hidden_features_BD_sim = 64
-    hyperparameters_dict_BD_sim = {"n_epochs": 100,
+    hyperparameters_dict_BD_sim = {"n_epochs": 50,
                               "batch_size": 128,
                               "lr": 0.0001,
                               "weight_decay": 0.0001}
@@ -152,9 +152,9 @@ def main(message):
     # Create and train
     create_and_train_flow("BDSIM", BD_sim_training_dir, transforms_BD_sim, base_dist_sim, hyperparameters_dict_BD_sim, device, sim_train_dataset, sim_val_dataset, early_stop = True)
 
-    make_base_density_samples(hyperparameters_dict_BD, "BDSIM", BD_sim_training_dir, BD_sim_samples_dir, device, bands_dict, n_features, dataset_sim, binning_scheme)
+    make_base_density_samples(hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, BD_sim_samples_dir, device, bands_dict, n_features, dataset_sim, binning_scheme)
 
-    evaluate_base_density(BD_samples_dir, hyperparameters_dict_BD_sim, "BDSIM", exp_dir, loc_id_BD, device, bands_dict, n_features, dataset_sim, binning_scheme, hyperparameters_dict_eval, use_old_CC = use_old_CC)
+    evaluate_base_density(BD_sim_samples_dir, hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, device, bands_dict, n_features, dataset_sim, binning_scheme, hyperparameters_dict_eval, use_old_CC = use_old_CC)
 
 
     """
@@ -204,9 +204,11 @@ def main(message):
     "
     """
     
-    #make_s2d_2step_samples(hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, BD_sim_training_dir, s2d_training_dir, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme)
     
-    #evaluate_s2d_2step(s2d_samples_dir, hyperparameters_dict_eval, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, use_old_CC = use_old_CC)
+    #make_s2d_samples(hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, BD_sim_training_dir, s2d_training_dir, s2d_training_dir, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, direct = False)
+    
+    
+    #evaluate_s2d(s2d_samples_dir, hyperparameters_dict_eval, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, use_old_CC = use_old_CC)
     
     return(message)
 

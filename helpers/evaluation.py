@@ -21,7 +21,7 @@ from helpers.utils import EarlyStopping
 
 
 
-def transform_sim_to_dat(flow, data_input, device):
+def transform_sim_to_dat_2step(flow, data_input, device):
     
     """
     uses the learned flow_s2d to transform 
@@ -37,7 +37,7 @@ def transform_sim_to_dat(flow, data_input, device):
     return outputs.detach().cpu().numpy()
 
 
-def transform_simBD_to_datBD(flow_SIM, flow_DAT, sim_input, device):
+def transform_sim_to_dat_direct(flow_SIM, flow_DAT, sim_input, device):
     
     """
     uses flow_SIM to transform SIM to normal
@@ -79,7 +79,7 @@ def make_BD_samples_dict(bands_dict, n_features, dataset_sim, bd_flow, device):
 
 
 
-def make_trans_samples_dict(bands_to_transform, bands_dict, dataset_sim, dataset_dat, transform_flow, device):
+def make_trans_samples_dict_2step(bands_to_transform, bands_dict, dataset_sim, dataset_dat, transform_flow, device):
     
     """
     Creates 3 dicts sim_samples, transformed_sim_samples, dat_samples
@@ -104,7 +104,7 @@ def make_trans_samples_dict(bands_to_transform, bands_dict, dataset_sim, dataset
         eval_dataset_dat.minmaxscale()
 
         # transform the sim sample to dat 
-        transformed_features_sim = transform_sim_to_dat(transform_flow, eval_dataset_sim, device)
+        transformed_features_sim = transform_sim_to_dat_2step(transform_flow, eval_dataset_sim, device)
 
         # save to dicts
         sim_samples[band] = eval_dataset_sim[:,:-1].detach().cpu().numpy()
@@ -115,7 +115,7 @@ def make_trans_samples_dict(bands_to_transform, bands_dict, dataset_sim, dataset
 
 
 
-def make_trans_samples_dict_BD_to_BD(bands_to_transform, bands_dict, dataset_sim, dataset_dat, flow_SIM, flow_DAT, device):
+def make_trans_samples_dict_direct(bands_to_transform, bands_dict, dataset_sim, dataset_dat, flow_SIM, flow_DAT, device):
     
     """
     Creates 3 dicts sim_samples, transformed_sim_samples, dat_samples
@@ -140,7 +140,7 @@ def make_trans_samples_dict_BD_to_BD(bands_to_transform, bands_dict, dataset_sim
         eval_dataset_dat.minmaxscale()
 
         # transform the sim sample to dat 
-        transformed_features_sim = transform_simBD_to_datBD(flow_SIM, flow_DAT, eval_dataset_sim, device)
+        transformed_features_sim = transform_sim_to_dat_direct(flow_SIM, flow_DAT, eval_dataset_sim, device)
 
         # save to dicts
         sim_samples[band] = eval_dataset_sim[:,:-1].detach().cpu().numpy()
