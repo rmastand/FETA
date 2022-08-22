@@ -24,7 +24,7 @@ def np_to_torch(array, device):
     return torch.tensor(array.astype(np.float32)).to(device)
 
 
-def train_flow(flow, checkpoint_path, optimizer, scheduler, cos_anneal_sched, val_sched, train_dataset, val_dataset, device, n_epochs, batch_size, update_epochs = 1, early_stop = True, visualize = False, visualize_epochs = 500, patience = 10):
+def train_flow(flow, checkpoint_path, optimizer, scheduler, cos_anneal_sched, val_sched, train_dataset, val_dataset, device, n_epochs, batch_size, update_epochs = 1, early_stop = True, visualize = False, visualize_epochs = 500, patience = 5):
     
     torch.manual_seed(8)
     np.random.seed(8)

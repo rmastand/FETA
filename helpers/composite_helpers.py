@@ -5,7 +5,7 @@ from helpers.evaluation import *
 from helpers.plotting import *
 
 
-def create_and_train_flow(keyword, flow_training_dir, transforms, base_dist, hyperparameters_dict, device, train_dataset, val_dataset, early_stop = False):
+def create_and_train_flow(keyword, flow_training_dir, transforms, base_dist, hyperparameters_dict, device, train_dataset, val_dataset, early_stop = True):
     
     """
     keyword should be BDSIM, BDDAT, or TRANS
@@ -188,7 +188,7 @@ def evaluate_base_density(flow_samples_dir, hyperparameters_dict_BD, keyword, fl
         
     results_file = f"{keyword}_results.txt"
 
-    with open(BD_dir+results_file, "w") as results:
+    with open(flow_training_dir+results_file, "w") as results:
         
         mean_AUC, lower_AUC, upper_AUC = get_bootstrapped_AUC(sim_BD_rocs)
         results.write(f"Discrim. power for SIM from BD in SB1 + SB2: {mean_AUC}; (5%, 95%) = ({lower_AUC}, {upper_AUC})\n")
@@ -212,11 +212,14 @@ def make_s2d_samples(hyperparameters_dict_BD_sim, hyperparameters_dict_dat_props
     """
     
     # Load in BD and s2d models
-    config_string_BD_sim = "epochs{0}_lr{1}_wd{2}_bs{3}".format(make_trans_samples_dict_direct["n_epochs"], make_trans_samples_dict_direct["lr"], make_trans_samples_dict_direct["weight_decay"], make_trans_samples_dict_direct["batch_size"])
+    config_string_BD_sim = "epochs{0}_lr{1}_wd{2}_bs{3}".format(hyperparameters_dict_BD_sim["n_epochs"], hyperparameters_dict_BD_sim["lr"], hyperparameters_dict_BD_sim["weight_decay"], hyperparameters_dict_BD_sim["batch_size"])
     config_string_dat_props = "epochs{0}_lr{1}_wd{2}_bs{3}".format(hyperparameters_dict_dat_props["n_epochs"], hyperparameters_dict_dat_props["lr"], hyperparameters_dict_dat_props["weight_decay"], hyperparameters_dict_dat_props["batch_size"])
 
     checkpoint_path_BD_sim = os.path.join(BD_sim_training_dir, f"BDSIM_{config_string_BD_sim}")
-    checkpoint_path_dat_props = os.path.join(dat_props_dir, f"TRANS_{config_string_dat_props}")
+    if not direct:
+        checkpoint_path_dat_props = os.path.join(dat_props_dir, f"TRANS_{config_string_dat_props}")
+    else:
+        checkpoint_path_dat_props = os.path.join(dat_props_dir, f"BDDAT_{config_string_dat_props}")
         
     # make a directory to store the npy samples
     samples_dir = os.path.join(s2d_dir, f"npy_samples/")
@@ -250,7 +253,7 @@ def make_s2d_samples(hyperparameters_dict_BD_sim, hyperparameters_dict_dat_props
     make_SIM_transDAT_plots(s2d_dir, sim_samples, transformed_sim_samples, dat_samples, binning_scheme, list(bands_dict.keys()))
     
     # Apply the flow to BD
-    SB_sim_samples, SB_BD_samples = make_BD_samples_dict(bands_dict, n_features, dataset_sim, flow_BD, device)
+    SB_sim_samples, SB_BD_samples = make_BD_samples_dict(bands_dict, n_features, dataset_sim, flow_BD_sim, device)
     if not direct:
         SB_trans_BD_samples = transform_sim_to_dat_2step(flow_dat_props, torch.tensor(SB_BD_samples), device)
     else:
@@ -282,13 +285,17 @@ def make_s2d_samples(hyperparameters_dict_BD_sim, hyperparameters_dict_dat_props
     
     
 
-def evaluate_s2d(s2d_samples_dir, hyperparameters_dict_eval, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, use_old_CC = False):
+def evaluate_s2d(s2d_samples_dir, s2d_dir, hyperparameters_dict_eval, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, use_old_CC = False):
     
     epochs_NN = hyperparameters_dict_eval["n_epochs"]
     batch_size_NN = hyperparameters_dict_eval["batch_size"]
     lr_NN = hyperparameters_dict_eval["lr"]
     patience_NN = hyperparameters_dict_eval["patience"]
     num_bootstrap = hyperparameters_dict_eval["num_bootstrap"]
+    
+    if use_old_CC:
+        classifs_results_dir = os.path.join(s2d_dir, "oldCC_results/")
+        os.makedirs(classifs_results_dir, exist_ok=True)
     
     # Load in npy samples
     sim_samples = {}
@@ -297,20 +304,20 @@ def evaluate_s2d(s2d_samples_dir, hyperparameters_dict_eval, device, bands_dict,
     
     for band in list(bands_dict.keys()):
         # sim
-        sim_samples[band] = np.load(os.path.join(samples_dir, f"{band}_SIM.npy"))
+        sim_samples[band] = np.load(os.path.join(s2d_samples_dir, f"{band}_SIM.npy"))
         # trans sim
-        transformed_sim_samples[band] = np.load(os.path.join(samples_dir, f"{band}_transSIM.npy"))
+        transformed_sim_samples[band] = np.load(os.path.join(s2d_samples_dir, f"{band}_transSIM.npy"))
         # dat
-        dat_samples[band] = np.load(os.path.join(samples_dir, f"{band}_DAT.npy"))
+        dat_samples[band] = np.load(os.path.join(s2d_samples_dir, f"{band}_DAT.npy"))
                 
     # BD
-    SB_BD_samples = np.load(os.path.join(samples_dir, f"BD.npy"))
+    SB_BD_samples = np.load(os.path.join(s2d_samples_dir, f"BD.npy"))
     
     # transBD
-    SB_trans_BD_samples = np.load(os.path.join(samples_dir, f"transBD.npy"))
+    SB_trans_BD_samples = np.load(os.path.join(s2d_samples_dir, f"transBD.npy"))
     
     # dat_sideband
-    SB_dat_samples = np.load(os.path.join(samples_dir, f"DAT_SB.npy"))
+    SB_dat_samples = np.load(os.path.join(s2d_samples_dir, f"DAT_SB.npy"))
 
   
     # Now attempt to discriminate transformed SIM from DAT
@@ -341,8 +348,8 @@ def evaluate_s2d(s2d_samples_dir, hyperparameters_dict_eval, device, bands_dict,
                 band_rocs[band].append(roc)
 
                 # Sanity check: attempt to discriminate UNTRANSFORMED SIM from DAT
-                ut_roc = analyze_band_transform(band, sim_sample_bs, dat_sample_bs, n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device)
-                untransfomed_band_rocs[band].append(ut_roc) 
+                roc = analyze_band_transform(band, sim_sample_bs, dat_sample_bs, n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device)
+                untransfomed_band_rocs[band].append(roc) 
 
                 if band == "ob1": # only once do we need to test the transBD vs DAT
                     SB_BD_indices_bs = get_bootstrapped_indices(SB_BD_samples.shape[0])
@@ -362,16 +369,16 @@ def evaluate_s2d(s2d_samples_dir, hyperparameters_dict_eval, device, bands_dict,
 
             # Sanity check: attempt to discriminate UNTRANSFORMED SIM from DAT
             if not use_old_CC:
-                ut_roc = analyze_band_transform(band, sim_samples[band], dat_samples[band], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device)
+                roc = analyze_band_transform(band, sim_samples[band], dat_samples[band], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device)
             else:
                 roc = analyze_band_transforms_CURTAILS_old(band, "SIM_v_DAT", sim_samples[band], dat_samples[band], classifs_results_dir, epochs_NN, batch_size_NN, lr_NN)
-            untransfomed_band_rocs[band].append(ut_roc) 
+            untransfomed_band_rocs[band].append(roc) 
 
             if band == "ob1": # only once do we need to test the transBD vs DAT
                 if not use_old_CC:
                     roc = analyze_band_transform("SB1 + SB2", SB_trans_BD_samples, SB_dat_samples, n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device)
                 else:
-                    analyze_band_transforms_CURTAILS_old("SB1 + SB2", "BD_v_DAT", SB_trans_BD_samples, SB_dat_samples, classifs_results_dir, epochs_NN, batch_size_NN, lr_NN)
+                    roc = analyze_band_transforms_CURTAILS_old("SB1 + SB2", "BD_v_DAT", SB_trans_BD_samples, SB_dat_samples, classifs_results_dir, epochs_NN, batch_size_NN, lr_NN)
                 BD_band_rocs.append(roc)
                 
         print()
