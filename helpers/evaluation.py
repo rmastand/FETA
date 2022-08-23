@@ -107,9 +107,10 @@ def make_trans_samples_dict_2step(bands_to_transform, bands_dict, dataset_sim, d
         transformed_features_sim = transform_sim_to_dat_2step(transform_flow, eval_dataset_sim, device)
 
         # save to dicts
-        sim_samples[band] = eval_dataset_sim[:,:-1].detach().cpu().numpy()
-        transformed_sim_samples[band] = transformed_features_sim
-        dat_samples[band] = eval_dataset_dat[:,:-1].detach().cpu().numpy()
+        sim_samples[band] = eval_dataset_sim.detach().cpu().numpy()
+        transformed_sim_samples[band] = np.hstack((transformed_features_sim, np.reshape(eval_dataset_sim[:,-1], (-1, 1))))
+        
+        dat_samples[band] = eval_dataset_dat.detach().cpu().numpy()
         
     return sim_samples, transformed_sim_samples, dat_samples
 

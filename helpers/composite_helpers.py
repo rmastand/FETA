@@ -5,7 +5,7 @@ from helpers.evaluation import *
 from helpers.plotting import *
 
 
-def create_and_train_flow(keyword, flow_training_dir, transforms, base_dist, hyperparameters_dict, device, train_dataset, val_dataset, early_stop = True):
+def create_and_train_flow(keyword, flow_training_dir, transforms, base_dist, hyperparameters_dict, device, train_dataset, val_dataset, early_stop = True, seed = 2515):
     
     """
     keyword should be BDSIM, BDDAT, or TRANS
@@ -74,7 +74,7 @@ def create_and_train_flow(keyword, flow_training_dir, transforms, base_dist, hyp
     cos_anneal_sched = True
     val_sched = False
     
-    epochs_learn, losses_learn, epochs_val_learn, losses_val_learn, best_epoch = train_flow(flow, checkpoint_path, optimizer, scheduler, cos_anneal_sched, val_sched, train_dataset, val_dataset, device, n_epochs, batch_size, early_stop = early_stop)
+    epochs_learn, losses_learn, epochs_val_learn, losses_val_learn, best_epoch = train_flow(flow, checkpoint_path, optimizer, scheduler, cos_anneal_sched, val_sched, train_dataset, val_dataset, device, n_epochs, batch_size, seed, early_stop = early_stop)
 
     # Plot the losses
     make_loss_png(epochs_learn, losses_learn, epochs_val_learn, losses_val_learn, loss_img_path)
@@ -168,21 +168,21 @@ def evaluate_base_density(flow_samples_dir, hyperparameters_dict_BD, keyword, fl
         if not use_old_CC:
             roc = analyze_band_transform("SB1 + SB2", SB_sim_samples[:,:-1], SB_BD_samples[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device)
         else:
-            roc = analyze_band_transforms_CURTAILS_old("SB1 + SB2", "real_v_BD", SB_sim_samples[:,:-1], SB_BD_samples[:,:-1], classifs_results_dir, epochs_NN, batch_size_NN, lr_NN)
+            roc = analyze_band_transforms_CURTAILS_old("SB1 + SB2", "real_v_BD", SB_sim_samples, SB_BD_samples, classifs_results_dir, epochs_NN, batch_size_NN, lr_NN)
         sim_BD_rocs.append(roc)
 
         # sim - sim
         if not use_old_CC:
             roc = analyze_band_transform("SB1 + SB2", SB_sim_samples[:,:-1], SB_sim_samples[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device)
         else:
-            roc = analyze_band_transforms_CURTAILS_old("SB1 + SB2", "real_v_real", SB_sim_samples[:,:-1], SB_sim_samples[:,:-1], classifs_results_dir, epochs_NN, batch_size_NN, lr_NN)
+            roc = analyze_band_transforms_CURTAILS_old("SB1 + SB2", "real_v_real", SB_sim_samples, SB_sim_samples, classifs_results_dir, epochs_NN, batch_size_NN, lr_NN)
         sim_sim_rocs.append(roc)
 
         # BD - BD
         if not use_old_CC:
             roc = analyze_band_transform("SB1 + SB2", SB_BD_samples[:,:-1], SB_BD_samples[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device)
         else:
-            roc = analyze_band_transforms_CURTAILS_old("SB1 + SB2", "BD_v_BD", SB_BD_samples[:,:-1], SB_BD_samples[:,:-1], classifs_results_dir, epochs_NN, batch_size_NN, lr_NN)
+            roc = analyze_band_transforms_CURTAILS_old("SB1 + SB2", "BD_v_BD", SB_BD_samples, SB_BD_samples, classifs_results_dir, epochs_NN, batch_size_NN, lr_NN)
         BD_BD_rocs.append(roc)
         
         

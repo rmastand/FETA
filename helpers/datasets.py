@@ -44,17 +44,22 @@ def make_dataset_with_context(n_points, n_features, dataset_shape, context_endpo
     # make the array of contexts
     context_init = np.random.uniform(size=(n_points, 1)) 
     context_range = context_endpoints[1] - context_endpoints[0]
+    context_mean = 0.5*(context_endpoints[1] + context_endpoints[0])
     context = context_init * context_range + context_endpoints[0]
     
     features_list = []
     # make the features
     for cont in context:
         
+        
+        
         if dataset_shape == "triangle":
-            if bias >= 1:
-                features_list.append(np.random.triangular(context_endpoints[0], min(bias*cont, context_endpoints[1]), context_endpoints[1], size=(1, n_features)))
-            else: 
-                features_list.append(np.random.triangular(context_endpoints[0], max(bias*cont, context_endpoints[0]), context_endpoints[1], size=(1, n_features)))
+            end = bias*context_mean
+            if bias >= 1: # DAT
+                features_list.append(np.random.triangular(context_endpoints[0], (1.0/context_range)*((context_endpoints[1]  - end)*cont + context_endpoints[1]*(end - context_endpoints[0])), context_endpoints[1], size=(1, n_features)))
+            else: # SIM
+                
+                features_list.append(np.random.triangular(context_endpoints[0], (1.0/context_range)*((end - context_endpoints[0])*cont + context_endpoints[0]*(context_endpoints[1] - end)), context_endpoints[1], size=(1, n_features)))
                 
         elif dataset_shape == "skewnorm":
             features_list.append(skewnorm.rvs(bias*cont, size=(1, n_features)))

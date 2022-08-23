@@ -12,7 +12,7 @@ from numba import cuda
 
 from helpers.composite_helpers import *
 
-message = "final (??) training for the 2 step"
+message = "toy training"
 
 webhook_url = "https://hooks.slack.com/services/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"
 @slack_sender(webhook_url=webhook_url, channel="is-my-code-done", user_mentions=["@Radha Mastandrea"])
@@ -26,7 +26,7 @@ def main(message):
     """
     """
 
-    os.environ["CUDA_VISIBLE_DEVICES"]="1"
+    os.environ["CUDA_VISIBLE_DEVICES"]="0"
     device = cuda.get_current_device()
     device.reset()
 
@@ -38,7 +38,7 @@ def main(message):
     device = torch.device( "cpu")
     print( "Using device: " + str( device ), flush=True)
 
-    seed = 8
+    seed = 1
   
 
     """
@@ -62,8 +62,8 @@ def main(message):
 
     curtains_dir = "/global/home/users/rrmastandrea/CURTAINS_SALAD/"
 
-    n_features = 5
-    dataset_config_string = f"LHCO_2step/"
+    n_features = 1
+    dataset_config_string = f"triangle_npoints100000_nfeatures2/"
 
     exp_dir = os.path.join(curtains_dir, dataset_config_string)
     data_dir = os.path.join(exp_dir, "data")
@@ -130,14 +130,14 @@ def main(message):
     # Training the BD
     # This will be the upper subdirectory in saved_models/
 
-    num_layers_BD_sim = 8
-    num_hidden_features_BD_sim = 64
-    hyperparameters_dict_BD_sim = {"n_epochs": 50,
+    num_layers_BD_sim = 4
+    num_hidden_features_BD_sim = 32
+    hyperparameters_dict_BD_sim = {"n_epochs": 20,
                               "batch_size": 128,
                               "lr": 0.0001,
                               "weight_decay": 0.0001}
 
-    loc_id_BD_sim = f"BD_sim_Masked_PRQ_AR_{num_layers_BD_sim}layers_{num_hidden_features_BD_sim}hidden_{seed}seed"
+    loc_id_BD_sim = f"BD_sim_Masked_PRQ_AR_{num_layers_BD_sim}layers_{num_hidden_features_BD_sim}hidden_seed{seed}"
     BD_sim_training_dir = os.path.join(exp_dir, f"saved_models_{loc_id_BD_sim}/")
     BD_sim_samples_dir = os.path.join(BD_sim_training_dir, f"npy_samples/")
     
@@ -149,7 +149,7 @@ def main(message):
     base_dist_sim = StandardNormal(shape=[n_features])
 
     # Create and train
-    create_and_train_flow("BDSIM", BD_sim_training_dir, transforms_BD_sim, base_dist_sim, hyperparameters_dict_BD_sim, device, sim_train_dataset, sim_val_dataset, early_stop = True, seed = seed)
+    #create_and_train_flow("BDSIM", BD_sim_training_dir, transforms_BD_sim, base_dist_sim, hyperparameters_dict_BD_sim, device, sim_train_dataset, sim_val_dataset, early_stop = True, seed = seed)
 
     make_base_density_samples(hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, BD_sim_samples_dir, device, bands_dict, n_features, dataset_sim, binning_scheme)
 
@@ -167,20 +167,20 @@ def main(message):
     # Training s2d
     # This will be another (of many) subdirectory in saved_models/
 
-    num_layers_s2d = 2
-    num_nodes_s2d = 16
-    hyperparameters_dict_s2d = {"n_epochs": 45,
-                              "batch_size": 256,
-                              "lr": 0.0002,
+    num_layers_s2d = 4
+    num_hidden_features_s2d = 32
+    hyperparameters_dict_s2d = {"n_epochs": 20,
+                              "batch_size": 128,
+                              "lr": 0.0001,
                               "weight_decay": 0.0001}
-    
-    loc_id_s2d = f"PRQ_Coupling_{num_layers_s2d}layers_{num_nodes_s2d}nodes_{seed}seed"
-    # training dir is inside the BD dir
+
+    loc_id_s2d = f"s2d_Masked_PRQ_AR_{num_layers_s2d}layers_{num_hidden_features_s2d}hidden_seed{seed}"
+    # traiign dir is inside the BD dir
     s2d_training_dir = os.path.join(BD_sim_training_dir, f"saved_models_{loc_id_s2d}/")
     s2d_samples_dir = os.path.join(s2d_training_dir, f"npy_samples/")
     
     # Define a flow architecture
-    transforms_s2d = make_coupling_flow(num_layers_s2d, n_features, num_nodes_s2d)
+    transforms_s2d = make_masked_AR_flow(num_layers_s2d, n_features, num_hidden_features_s2d)
     
 
     flow_BD = torch.load(f"{checkpoint_path_BD_sim}_best_model.pt")

@@ -302,10 +302,10 @@ def kfold_gen(scikit_generator, X, y):
 def assign_scores(true_samples, template_samples, results_dir, nfolds=5, use_weights=True, n_epochs=20, batch_size=128,
                   wd=None, lr=0.001, use_scheduler=True, batch_norm=False, layer_norm=False, width=32, depth=3, drp=0.0,
                   cf_activ='relu', event_id=None, truth_bkg=None, visualize = False):
-                  
-    X = np.concatenate((template_samples[:, :-1], true_samples[:, :-1]), 0)
-    masses = np.concatenate((template_samples[:, -1:], true_samples[:, -1:]), 0)
-
+    
+    X = np.vstack((template_samples[:, :-1], true_samples[:, :-1]))
+    masses = np.vstack((template_samples[:, -1:], true_samples[:, -1:]))
+    print("shape without masses:", X.shape)
     n_templates = len(template_samples)
     y = torch.cat((torch.zeros(n_templates),
                    torch.ones(len(true_samples))), 0).view(-1, 1).cpu().numpy()
