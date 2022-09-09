@@ -66,12 +66,12 @@ def make_SIM_transDAT_plots(img_dir, sim_samples, transformed_sim_samples, dat_s
     
     for band in bands_to_plot:
 
-        fig, ax = plt.subplots(2, n_features, figsize = (4*n_features, 2*4))
+        fig, ax = plt.subplots(2, n_features, figsize = (4*n_features, 5), gridspec_kw={'height_ratios': [4, 1]})
         for i in range(n_features):
 
             # Plots hists
             ax[0, i].hist(sim_samples[band][:,i], bins = binning_scheme, label = "SIM", histtype = "step", color = "red", density = True)
-            ax[0, i].hist(transformed_sim_samples[band][:,i], bins = binning_scheme, label = "trans SIM", alpha = alpha, color = "blue", density = True)
+            ax[0, i].hist(transformed_sim_samples[band][:,i], bins = binning_scheme, label = "trans(SIM)", alpha = alpha, color = "blue", density = True)
             ax[0, i].hist(dat_samples[band][:,i], bins = binning_scheme, label = "DAT", histtype = "step", color = "blue", density = True)
             ax[0, i].legend()
             ax[0, i].set_title(f"f{i}")
@@ -109,7 +109,7 @@ def make_BD_transBD_plots(img_dir, BD_samples, transformed_BD_samples, dat_sampl
     alpha = 0.5
     n_features = BD_samples.shape[-1]
 
-    fig, ax = plt.subplots(2, n_features, figsize = (4*n_features, 2*4))
+    fig, ax = plt.subplots(2, n_features, figsize = (4*n_features, 5), gridspec_kw={'height_ratios': [4, 1]})
     for i in range(n_features):
 
         # Plots hists

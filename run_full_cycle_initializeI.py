@@ -12,7 +12,7 @@ from numba import cuda
 
 from helpers.composite_helpers import *
 
-message = "toy training"
+message = "initializeI"
 
 webhook_url = "https://hooks.slack.com/services/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"
 @slack_sender(webhook_url=webhook_url, channel="is-my-code-done", user_mentions=["@Radha Mastandrea"])
@@ -26,7 +26,7 @@ def main(message):
     """
     """
 
-    os.environ["CUDA_VISIBLE_DEVICES"]="0"
+    os.environ["CUDA_VISIBLE_DEVICES"]="3"
     device = cuda.get_current_device()
     device.reset()
 
@@ -34,12 +34,11 @@ def main(message):
     torch.set_num_threads(2)
 
     # set gpu device
-    #device = torch.device( "cuda" if torch.cuda.is_available() else "cpu")
-    device = torch.device( "cpu")
+    device = torch.device( "cuda" if torch.cuda.is_available() else "cpu")
     print( "Using device: " + str( device ), flush=True)
 
     seed = 1
-  
+ 
 
     """
     """
@@ -62,8 +61,9 @@ def main(message):
 
     curtains_dir = "/global/home/users/rrmastandrea/CURTAINS_SALAD/"
 
-    n_features = 1
-    dataset_config_string = f"triangle_npoints100000_nfeatures2/"
+    n_features = 5
+    num_signal_to_inject = 0
+    dataset_config_string = f"LHCO_{num_signal_to_inject}sig/"
 
     exp_dir = os.path.join(curtains_dir, dataset_config_string)
     data_dir = os.path.join(exp_dir, "data")
@@ -73,14 +73,13 @@ def main(message):
 
    
     # dataset generation parameters
-    context_endpoints = (0, 1)
+    context_endpoints = (3000, 4000)
 
-
-    bands_dict = {"ob1": [0, .2],
-                  "sb1": [.2, .4],
-                  "sr" : [.4, .6],
-                  "sb2": [.6, .8],
-                  "ob2": [.8, 1]}
+    bands_dict = {"ob1": [3000, 3200],
+                  "sb1": [3200, 3400],
+                  "sr" : [3400, 3600],
+                  "sb2": [3600, 3800],
+                  "ob2": [3800, 4000]}
 
     binning_scheme = np.linspace(-3.5, 3.5, 50)
 
@@ -131,15 +130,15 @@ def main(message):
     # Training the BD
     # This will be the upper subdirectory in saved_models/
 
-    num_layers_BD_sim = 2
-    num_hidden_features_BD_sim = 16
-    hyperparameters_dict_BD_sim = {"n_epochs": 20,
+    num_layers_BD_sim = 8
+    num_hidden_features_BD_sim = 64
+    hyperparameters_dict_BD_sim = {"n_epochs": 50,
                               "batch_size": 128,
-                              "lr": 0.0003,
+                              "lr": 0.0001,
                               "weight_decay": 0.0001}
 
-    loc_id_BD_sim = f"BD_sim_Masked_PRQ_AR_{num_layers_BD_sim}layers_{num_hidden_features_BD_sim}hidden_seed{seed}"
-    BD_sim_training_dir = os.path.join(exp_dir, f"saved_models_{loc_id_BD_sim}/")
+    loc_id_BD_sim = f"BD_sim_Masked_PRQ_AR_{num_layers_BD_sim}layers_{num_hidden_features_BD_sim}hidden_{seed}seed"
+    BD_sim_training_dir = os.path.join(exp_dir, f"saved_models_BD_sim_II_{seed}seed/")
     BD_sim_samples_dir = os.path.join(BD_sim_training_dir, f"npy_samples/")
     
     config_string_BD_sim = "epochs{0}_lr{1}_wd{2}_bs{3}".format(hyperparameters_dict_BD_sim["n_epochs"], hyperparameters_dict_BD_sim["lr"], hyperparameters_dict_BD_sim["weight_decay"], hyperparameters_dict_BD_sim["batch_size"])
@@ -169,19 +168,22 @@ def main(message):
     # This will be another (of many) subdirectory in saved_models/
 
     num_layers_s2d = 2
-    num_hidden_features_s2d = 16
-    hyperparameters_dict_s2d = {"n_epochs": 20,
+    num_nodes_s2d = 16
+    hyperparameters_dict_s2d = {"n_epochs": 30,
                               "batch_size": 256,
-                              "lr": 0.0003,
+                              "lr": 0.0004,
                               "weight_decay": 0.0001}
-
-    loc_id_s2d = f"s2d_Masked_PRQ_AR_{num_layers_s2d}layers_{num_hidden_features_s2d}hidden_seed{seed}"
-    # traiign dir is inside the BD dir
-    s2d_training_dir = os.path.join(BD_sim_training_dir, f"saved_models_{loc_id_s2d}/")
+    
+    loc_id_s2d = f"PRQ_Coupling_{num_layers_s2d}layers_{num_nodes_s2d}nodes_{seed}seed"
+    # training dir is inside the BD dir
+    s2s_training_dir = os.path.join(BD_sim_training_dir, f"saved_models_SIM2SIM_{seed}seed/")
+    s2s_samples_dir = os.path.join(s2s_training_dir, f"npy_samples/")
+    
+    s2d_training_dir = os.path.join(BD_sim_training_dir, f"saved_models_SIM2DAT_{seed}seed/")
     s2d_samples_dir = os.path.join(s2d_training_dir, f"npy_samples/")
     
     # Define a flow architecture
-    transforms_s2d = make_masked_AR_flow(num_layers_s2d, n_features, num_hidden_features_s2d)
+    transforms_s2d = make_coupling_flow(num_layers_s2d, n_features, num_nodes_s2d)
     
 
     flow_BD = torch.load(f"{checkpoint_path_BD_sim}_best_model.pt")
@@ -193,8 +195,14 @@ def main(message):
     flow_BD.eval()
 
     # Create and train
-    create_and_train_flow("TRANS", s2d_training_dir, transforms_s2d, flow_BD, hyperparameters_dict_s2d, device, dat_train_dataset, dat_val_dataset, early_stop = False, seed = seed)
+    """
+    FIRST LEARN SIM -> SIM
+    """
+    create_and_train_flow("TRANS", s2s_training_dir, transforms_s2d, flow_BD, hyperparameters_dict_s2d, device, sim_train_dataset, sim_val_dataset, early_stop = False, seed = seed)
 
+    """
+    THEN LEARN SIM -> DAT
+    """
 
     """
     "
@@ -205,10 +213,10 @@ def main(message):
     """
     
     
-    make_s2d_samples(hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, BD_sim_training_dir, s2d_training_dir, s2d_training_dir, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, direct = False)
+    #make_s2d_samples(hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, BD_sim_training_dir, s2d_training_dir, s2d_training_dir, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, direct = False)
     
     
-    evaluate_s2d(s2d_samples_dir, s2d_training_dir, hyperparameters_dict_eval, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, use_old_CC = use_old_CC)
+    #evaluate_s2d(s2d_samples_dir, s2d_training_dir, hyperparameters_dict_eval, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, use_old_CC = use_old_CC)
     
     return(message)
 

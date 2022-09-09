@@ -12,7 +12,7 @@ from numba import cuda
 
 from helpers.composite_helpers import *
 
-message = "final (??) training for the 2 step"
+message = "120 sig seed 4"
 
 webhook_url = "https://hooks.slack.com/services/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"
 @slack_sender(webhook_url=webhook_url, channel="is-my-code-done", user_mentions=["@Radha Mastandrea"])
@@ -26,7 +26,7 @@ def main(message):
     """
     """
 
-    os.environ["CUDA_VISIBLE_DEVICES"]="1"
+    os.environ["CUDA_VISIBLE_DEVICES"]="0"
     device = cuda.get_current_device()
     device.reset()
 
@@ -34,12 +34,11 @@ def main(message):
     torch.set_num_threads(2)
 
     # set gpu device
-    #device = torch.device( "cuda" if torch.cuda.is_available() else "cpu")
-    device = torch.device( "cpu")
+    device = torch.device( "cuda" if torch.cuda.is_available() else "cpu")
     print( "Using device: " + str( device ), flush=True)
 
-    seed = 8
-  
+    seed = 4
+ 
 
     """
     """
@@ -63,7 +62,8 @@ def main(message):
     curtains_dir = "/global/home/users/rrmastandrea/CURTAINS_SALAD/"
 
     n_features = 5
-    dataset_config_string = f"LHCO_2step/"
+    num_signal_to_inject = 120
+    dataset_config_string = f"LHCO_{num_signal_to_inject}sig/"
 
     exp_dir = os.path.join(curtains_dir, dataset_config_string)
     data_dir = os.path.join(exp_dir, "data")
@@ -149,7 +149,7 @@ def main(message):
     base_dist_sim = StandardNormal(shape=[n_features])
 
     # Create and train
-    create_and_train_flow("BDSIM", BD_sim_training_dir, transforms_BD_sim, base_dist_sim, hyperparameters_dict_BD_sim, device, sim_train_dataset, sim_val_dataset, early_stop = True, seed = seed)
+    create_and_train_flow("BDSIM", BD_sim_training_dir, transforms_BD_sim, base_dist_sim, hyperparameters_dict_BD_sim, device, sim_train_dataset, sim_val_dataset, early_stop = False, seed = seed)
 
     make_base_density_samples(hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, BD_sim_samples_dir, device, bands_dict, n_features, dataset_sim, binning_scheme)
 
@@ -169,9 +169,9 @@ def main(message):
 
     num_layers_s2d = 2
     num_nodes_s2d = 16
-    hyperparameters_dict_s2d = {"n_epochs": 45,
+    hyperparameters_dict_s2d = {"n_epochs": 30,
                               "batch_size": 256,
-                              "lr": 0.0002,
+                              "lr": 0.0004,
                               "weight_decay": 0.0001}
     
     loc_id_s2d = f"PRQ_Coupling_{num_layers_s2d}layers_{num_nodes_s2d}nodes_{seed}seed"
@@ -192,7 +192,7 @@ def main(message):
     flow_BD.eval()
 
     # Create and train
-    create_and_train_flow("TRANS", s2d_training_dir, transforms_s2d, flow_BD, hyperparameters_dict_s2d, device, dat_train_dataset, dat_val_dataset, early_stop = True, seed = seed)
+    create_and_train_flow("TRANS", s2d_training_dir, transforms_s2d, flow_BD, hyperparameters_dict_s2d, device, dat_train_dataset, dat_val_dataset, early_stop = False, seed = seed)
 
 
     """

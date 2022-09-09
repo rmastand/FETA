@@ -73,6 +73,7 @@ def make_BD_samples_dict(bands_dict, n_features, dataset_sim, bd_flow, device):
     BD_samples = BD_samples.reshape(BD_samples.shape[0], n_features)
     
     BD_samples = np.hstack((BD_samples, np.reshape(sim_samples[:,-1], (-1, 1))))
+    
 
     
     return sim_samples.data, BD_samples
@@ -105,12 +106,11 @@ def make_trans_samples_dict_2step(bands_to_transform, bands_dict, dataset_sim, d
 
         # transform the sim sample to dat 
         transformed_features_sim = transform_sim_to_dat_2step(transform_flow, eval_dataset_sim, device)
-
-        # save to dicts
-        sim_samples[band] = eval_dataset_sim.detach().cpu().numpy()
-        transformed_sim_samples[band] = np.hstack((transformed_features_sim, np.reshape(eval_dataset_sim[:,-1], (-1, 1))))
         
-        dat_samples[band] = eval_dataset_dat.detach().cpu().numpy()
+        # save to dicts       
+        sim_samples[band] = eval_dataset_sim.data
+        transformed_sim_samples[band] = np.hstack((transformed_features_sim, np.reshape(eval_dataset_sim.data[:,-1], (-1, 1))))
+        dat_samples[band] = eval_dataset_dat.data
         
     return sim_samples, transformed_sim_samples, dat_samples
 

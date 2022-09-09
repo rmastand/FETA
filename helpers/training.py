@@ -143,6 +143,131 @@ def train_flow(flow, checkpoint_path, optimizer, scheduler, cos_anneal_sched, va
     return epochs, losses, epochs_val, losses_val, best_epoch
 
 
+def with_L2_loss(tflow, inputs, context, alpha = 0.01):
+    # alpha is the l2 loss param
+    embedded_context = tflow._embedding_net(context)
+    # generic loss for SIM -> DAT transform
+    SIM_attempt, logabsdet_s2d = tflow._transform(inputs, context=embedded_context)
+    log_prob_s2d = tflow._distribution.log_prob(SIM_attempt, context=embedded_context)
+    
+
+    distance_mat = inputs - SIM_attempt
+    distances = torch.linalg.norm(distance_mat, axis = 1)
+    print(distances)
+    
+
+    
+     
+    
+    return log_prob_s2d  + logabsdet_s2d 
+
+def train_flow_L2_loss(flow, checkpoint_path, optimizer, scheduler, cos_anneal_sched, val_sched, train_dataset, val_dataset, device, n_epochs, batch_size, seed, early_stop = True, patience = 5):
+    
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+
+    update_epochs = 1
+    
+    epochs, epochs_val = [], []
+    losses, losses_val = [], []
+    
+    print("Training flow for", n_epochs, "epochs ...")
+    print("Training:", len(train_dataset), "objects")
+    print("Validation:", len(val_dataset), "objects")
+    print()
+        
+    if early_stop:
+        early_stopping = EarlyStopping(patience = patience)
+        
+    # save the best model
+    val_losses_to_beat = [10]
+    best_epoch = -1
+    
+    train_data = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=False, num_workers = 8, pin_memory = True)
+    val_data = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers = 8, pin_memory = True)
+    
+    # to visualize the probability distributions 
+  
+    for epoch in tqdm(range(n_epochs)):
+          
+          
+                
+        losses_batch_per_e = []
+                
+        for batch_ndx, data in enumerate(train_data):
+            
+            
+            data = data.to(device)
+            feats = data[:,:-1].float()
+            cont = torch.reshape(data[:,-1], (-1, 1)).float()
+            loss = -with_L2_loss(flow, feats, context, alpha = 0.01).mean()
+            losses_batch_per_e.append(loss.detach().cpu().numpy())
+            optimizer.zero_grad()       
+            loss.backward()
+            optimizer.step()  
+            
+        if cos_anneal_sched:
+            scheduler.step()
+            
+        # store the loss
+        epochs.append(epoch)
+        losses.append(np.mean(losses_batch_per_e))
+        
+        if epoch % update_epochs == 0: # validation loss
+            with torch.no_grad():
+                
+                val_losses_batch_per_e = []
+                
+                for batch_ndx, data in enumerate(val_data):
+                    data = data.to(device)
+                    optimizer.zero_grad()       
+                    feats = data[:,:-1].float()
+                    cont = torch.reshape(data[:,-1], (-1, 1)).float()
+                    val_loss = -with_L2_loss(flow, feats, context, alpha = 0.01).mean()
+                    val_losses_batch_per_e.append(val_loss.detach().cpu().numpy())
+               
+                # store the loss
+                epochs_val.append(epoch)
+                mean_val_loss = np.mean(val_losses_batch_per_e)
+                losses_val.append(mean_val_loss)
+                
+                # see if the model has the best val loss
+                for ii in range(len(val_losses_to_beat)):
+                    if mean_val_loss < val_losses_to_beat[ii]:
+                        val_losses_to_beat[ii] = mean_val_loss
+                        # save the model
+                        model_path = f"{checkpoint_path}_best_model.pt"
+                        torch.save(flow, model_path)
+                        best_epoch = epoch
+                        break
+                
+                if early_stop:
+                    early_stopping(mean_val_loss)
+                if val_sched:
+                    scheduler.step(mean_val_loss)
+         
+        if early_stop:
+            if early_stopping.early_stop:
+                break
+                
+    print("Done training!")
+    
+    with open(f"{checkpoint_path}_best_val_loss.txt", "w") as info_file:
+        info_file.write(f"Best validation loss of {val_losses_to_beat[0]} at epoch {best_epoch}")
+                                   
+    print("Saving the final base density model ...")
+
+    model_path = f"{checkpoint_path}_final_model.pt"
+    torch.save(flow, model_path)
+                
+        
+    return epochs, losses, epochs_val, losses_val, best_epoch
+    
+
+    
+
+
+
 def s2d_loss(tflow, SIM_BD, DAT_input, context):
     embedded_context = tflow._embedding_net(context)
     # generic loss for SIM -> DAT transform

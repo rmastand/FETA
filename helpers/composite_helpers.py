@@ -5,7 +5,7 @@ from helpers.evaluation import *
 from helpers.plotting import *
 
 
-def create_and_train_flow(keyword, flow_training_dir, transforms, base_dist, hyperparameters_dict, device, train_dataset, val_dataset, early_stop = True, seed = 2515):
+def create_and_train_flow(keyword, flow_training_dir, transforms, base_dist, hyperparameters_dict, device, train_dataset, val_dataset, early_stop = False, seed = 2515, L2 = False):
     
     """
     keyword should be BDSIM, BDDAT, or TRANS
@@ -74,8 +74,13 @@ def create_and_train_flow(keyword, flow_training_dir, transforms, base_dist, hyp
     cos_anneal_sched = True
     val_sched = False
     
-    epochs_learn, losses_learn, epochs_val_learn, losses_val_learn, best_epoch = train_flow(flow, checkpoint_path, optimizer, scheduler, cos_anneal_sched, val_sched, train_dataset, val_dataset, device, n_epochs, batch_size, seed, early_stop = early_stop)
+    if not L2:
+        epochs_learn, losses_learn, epochs_val_learn, losses_val_learn, best_epoch = train_flow(flow, checkpoint_path, optimizer, scheduler, cos_anneal_sched, val_sched, train_dataset, val_dataset, device, n_epochs, batch_size, seed, early_stop = early_stop)
 
+    else:
+        epochs_learn, losses_learn, epochs_val_learn, losses_val_learn, best_epoch = train_flow_L2_loss(flow, checkpoint_path, optimizer, scheduler, cos_anneal_sched, val_sched, train_dataset, val_dataset, device, n_epochs, batch_size, seed, early_stop = early_stop)
+        
+        
     # Plot the losses
     make_loss_png(epochs_learn, losses_learn, epochs_val_learn, losses_val_learn, loss_img_path)
     
@@ -258,11 +263,11 @@ def make_s2d_samples(hyperparameters_dict_BD_sim, hyperparameters_dict_dat_props
         SB_trans_BD_samples = transform_sim_to_dat_2step(flow_dat_props, torch.tensor(SB_BD_samples), device)
     else:
         SB_trans_BD_samples = transform_sim_to_dat_direct(flow_BD_sim, flow_dat_props, torch.tensor(SB_BD_samples), device)
+    SB_trans_BD_samples = np.hstack((SB_trans_BD_samples, np.reshape(SB_BD_samples[:,-1], (-1, 1))))
+
     SB_dat_samples = dataset_dat.pull_from_mass_range([bands_dict["sb1"], bands_dict["sb2"]])
     SB_dat_samples.minmaxscale()
-    
-    SB_BD_samples = SB_BD_samples[:,:-1]
-    SB_dat_samples = SB_dat_samples.data[:,:-1]
+    SB_dat_samples = SB_dat_samples.data
     make_BD_transBD_plots(s2d_dir, SB_BD_samples, SB_trans_BD_samples, SB_dat_samples, binning_scheme)
     
     # save the npy samples out

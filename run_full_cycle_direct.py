@@ -28,7 +28,7 @@ def main(message):
     """
     """
 
-    os.environ["CUDA_VISIBLE_DEVICES"]="2"
+    os.environ["CUDA_VISIBLE_DEVICES"]="0"
     device = cuda.get_current_device()
     device.reset()
 
@@ -39,7 +39,7 @@ def main(message):
     device = torch.device( "cuda" if torch.cuda.is_available() else "cpu")
     print( "Using device: " + str( device ), flush=True)
 
-    seed = 8
+    seed = 4
   
 
 
@@ -133,7 +133,7 @@ def main(message):
     num_layers_BD_sim = 2
     num_hidden_features_BD_sim = 16
     num_nodes_BD_sim = 16
-    hyperparameters_dict_BD_sim = {"n_epochs": 40,
+    hyperparameters_dict_BD_sim = {"n_epochs": 20,
                                   "batch_size": 256,
                                   "lr": 0.0005,
                                   "weight_decay": 0.0001}
@@ -147,7 +147,7 @@ def main(message):
     base_dist_sim = StandardNormal(shape=[n_features])
     
     # Create and train
-    create_and_train_flow("BDSIM", BD_sim_training_dir, transforms_BD_sim, base_dist_sim, hyperparameters_dict_BD_sim, device, sim_train_dataset, sim_val_dataset, early_stop = True, seed = seed)
+    create_and_train_flow("BDSIM", BD_sim_training_dir, transforms_BD_sim, base_dist_sim, hyperparameters_dict_BD_sim, device, sim_train_dataset, sim_val_dataset, early_stop = False, seed = seed)
 
     make_base_density_samples(hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, BD_sim_samples_dir, device, bands_dict, n_features, dataset_sim, binning_scheme)
 
@@ -166,7 +166,7 @@ def main(message):
     num_layers_BD_dat = 2
     num_hidden_features_BD_dat = 16
     num_nodes_BD_dat = 16
-    hyperparameters_dict_BD_dat = {"n_epochs": 40,
+    hyperparameters_dict_BD_dat = {"n_epochs": 20,
                                   "batch_size": 256,
                                   "lr": 0.0005,
                                   "weight_decay": 0.0001}
@@ -181,7 +181,7 @@ def main(message):
 
     # Create and train
     
-    create_and_train_flow("BDDAT", BD_dat_training_dir, transforms_BD_dat, base_dist_dat, hyperparameters_dict_BD_dat, device, dat_train_dataset, dat_val_dataset, early_stop = True, seed = seed)
+    create_and_train_flow("BDDAT", BD_dat_training_dir, transforms_BD_dat, base_dist_dat, hyperparameters_dict_BD_dat, device, dat_train_dataset, dat_val_dataset, early_stop = False, seed = seed)
 
     make_base_density_samples(hyperparameters_dict_BD_dat, "BDDAT", BD_dat_training_dir, BD_dat_samples_dir, device, bands_dict, n_features, dataset_dat, binning_scheme)
     
@@ -196,7 +196,7 @@ def main(message):
     "
     """
     
-    s2d_dir = os.path.join(exp_dir, f"s2d_direct_transfor_seed{seed}m/")
+    s2d_dir = os.path.join(exp_dir, f"s2d_direct_transfer_seed{seed}/")
     os.makedirs(s2d_dir, exist_ok=True)
     s2d_samples_dir = os.path.join(s2d_dir, f"npy_samples/")
 
