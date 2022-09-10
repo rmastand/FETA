@@ -78,12 +78,102 @@ def create_and_train_flow(keyword, flow_training_dir, transforms, base_dist, hyp
         epochs_learn, losses_learn, epochs_val_learn, losses_val_learn, best_epoch = train_flow(flow, checkpoint_path, optimizer, scheduler, cos_anneal_sched, val_sched, train_dataset, val_dataset, device, n_epochs, batch_size, seed, early_stop = early_stop)
 
     else:
-        epochs_learn, losses_learn, epochs_val_learn, losses_val_learn, best_epoch = train_flow_L2_loss(flow, checkpoint_path, optimizer, scheduler, cos_anneal_sched, val_sched, train_dataset, val_dataset, device, n_epochs, batch_size, seed, early_stop = early_stop)
+        alpha = hyperparameters_dict["alpha"]
+        epochs_learn, losses_learn, epochs_val_learn, losses_val_learn, best_epoch = train_flow_L2_loss(flow, checkpoint_path, optimizer, scheduler, cos_anneal_sched, val_sched, train_dataset, val_dataset, device, n_epochs, batch_size, seed, alpha, early_stop = early_stop)
         
         
     # Plot the losses
     make_loss_png(epochs_learn, losses_learn, epochs_val_learn, losses_val_learn, loss_img_path)
     
+def create_and_double_train_flow(keyword, flow_training_dir_1, flow_training_dir_2, transforms, base_dist, hyperparameters_dict, device, train_dataset_1, val_dataset_1, train_dataset_2, val_dataset_2, early_stop = False, seed = 2515):
+    
+    """
+    keyword should be BDSIM, BDDAT, or TRANS
+    Hard-coded to do cosine annealing LR scheduler
+    """
+    
+    """
+    "
+    "
+    CREATE FLOW
+    "
+    "
+    """
+    
+    print("Making models directories ...")
+    print()
+
+    os.makedirs(flow_training_dir_1, exist_ok=True)
+    os.makedirs(flow_training_dir_2, exist_ok=True)
+    
+    # Define the flow
+    transform = CompositeTransform(transforms)
+    flow = Flow(transform, base_dist)
+    
+    # Get the number of parameters in the flow
+    num_params = 0
+    for param in flow.parameters():
+        num_params += 1
+
+    # Write out a flow architecture
+    architecture_file = f"model_architecture_{keyword}.txt"
+
+    with open(flow_training_dir_1+architecture_file, "w") as arch_file:
+        arch_file.write(f"Num flow params: {num_params}\n")
+        arch_file.write("Base density:\n")
+        arch_file.write(str(base_dist))
+        arch_file.write(3*"\n")
+        arch_file.write("Transforms:\n")
+        arch_file.write(str(transforms))
+        
+    """
+    "
+    "
+    TRAIN FLOW
+    "
+    "
+    """
+    
+    print("Learning the distribution...")
+    print()
+    
+    n_epochs = hyperparameters_dict["n_epochs"]
+    lr = hyperparameters_dict["lr"]
+    weight_decay = hyperparameters_dict["weight_decay"]
+    batch_size = hyperparameters_dict["batch_size"]
+    
+    config_string = f"epochs{n_epochs}_lr{lr}_wd{weight_decay}_bs{batch_size}"
+
+    checkpoint_path_1 = os.path.join(flow_training_dir_1, f"{keyword}_{config_string}")
+    checkpoint_path_2 = os.path.join(flow_training_dir_2, f"{keyword}_{config_string}")
+    loss_img_path_1 = os.path.join(flow_training_dir_1, f"{keyword}_loss_{config_string}.png")
+    loss_img_path_2 = os.path.join(flow_training_dir_2, f"{keyword}_loss_{config_string}.png")
+
+    # send network to device
+    flow.to(device)
+    
+    cos_anneal_sched = True
+    val_sched = False
+    
+    # 1st train
+    optimizer = optim.AdamW(flow.parameters(), lr = lr, weight_decay = weight_decay)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, n_epochs, eta_min = 0)
+    print("1st train starting")
+    print()
+    epochs_learn, losses_learn, epochs_val_learn, losses_val_learn, best_epoch = train_flow(flow, checkpoint_path_1, optimizer, scheduler, cos_anneal_sched, val_sched, train_dataset_1, val_dataset_1, device, n_epochs, batch_size, seed, early_stop = early_stop)
+    # Plot the losses
+    make_loss_png(epochs_learn, losses_learn, epochs_val_learn, losses_val_learn, loss_img_path_1)
+    
+    # 2nd train
+    optimizer = optim.AdamW(flow.parameters(), lr = lr, weight_decay = weight_decay)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, n_epochs, eta_min = 0)
+    print("2nd train starting")
+    print()
+    epochs_learn, losses_learn, epochs_val_learn, losses_val_learn, best_epoch = train_flow(flow, checkpoint_path_2, optimizer, scheduler, cos_anneal_sched, val_sched, train_dataset_2, val_dataset_2, device, n_epochs, batch_size, seed, early_stop = early_stop)
+    # Plot the losses
+    make_loss_png(epochs_learn, losses_learn, epochs_val_learn, losses_val_learn, loss_img_path_2)
+    
+
 
 
 def make_base_density_samples(hyperparameters_dict_BD, keyword, flow_training_dir, flow_samples_dir, device, bands_dict, n_features, dataset_sim, binning_scheme):

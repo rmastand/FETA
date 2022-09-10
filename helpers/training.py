@@ -24,7 +24,7 @@ def np_to_torch(array, device):
     return torch.tensor(array.astype(np.float32)).to(device)
 
 
-def train_flow(flow, checkpoint_path, optimizer, scheduler, cos_anneal_sched, val_sched, train_dataset, val_dataset, device, n_epochs, batch_size, seed, early_stop = True, visualize = False, visualize_epochs = 500, patience = 5):
+def train_flow(flow, checkpoint_path, optimizer, scheduler, cos_anneal_sched, val_sched, train_dataset, val_dataset, device, n_epochs, batch_size, seed, early_stop = True, patience = 5):
     
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -49,28 +49,10 @@ def train_flow(flow, checkpoint_path, optimizer, scheduler, cos_anneal_sched, va
     train_data = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=False, num_workers = 8, pin_memory = True)
     val_data = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers = 8, pin_memory = True)
     
-    # to visualize the probability distributions 
-    if visualize:
-        n = int(100)
-        xline = torch.linspace(-4, 4, steps = n)
-        yline = torch.linspace(-4, 4, steps = n)
-        xgrid, ygrid = torch.meshgrid(xline, yline)
-        xyinput = torch.cat([xgrid.reshape(-1, 1), ygrid.reshape(-1, 1)], dim=1)
-        xyinput = xyinput.to(device)
-
+ 
     for epoch in tqdm(range(n_epochs)):
           
-        if epoch % visualize_epochs == 0: 
-            if visualize:
-                con = torch.randn((n*n, 1)).to(device)
-                with torch.no_grad():
-                    zgrid0 = flow.log_prob(xyinput, con).exp().reshape(n, n)   
-
-                fig, ax = plt.subplots(1, 1, figsize = (5,5))
-                ax.contourf(xgrid.cpu().numpy(), ygrid.cpu().numpy(), zgrid0.cpu().numpy())
-                plt.title('iteration {}'.format(epoch))
-                plt.show()
-                
+    
         losses_batch_per_e = []
                 
         for batch_ndx, data in enumerate(train_data):
@@ -143,25 +125,22 @@ def train_flow(flow, checkpoint_path, optimizer, scheduler, cos_anneal_sched, va
     return epochs, losses, epochs_val, losses_val, best_epoch
 
 
-def with_L2_loss(tflow, inputs, context, alpha = 0.01):
+def with_L2_loss(tflow, inputs, context, alpha):
     # alpha is the l2 loss param
+    
     embedded_context = tflow._embedding_net(context)
     # generic loss for SIM -> DAT transform
     SIM_attempt, logabsdet_s2d = tflow._transform(inputs, context=embedded_context)
     log_prob_s2d = tflow._distribution.log_prob(SIM_attempt, context=embedded_context)
     
-
     distance_mat = inputs - SIM_attempt
     distances = torch.linalg.norm(distance_mat, axis = 1)
-    print(distances)
     
+    return log_prob_s2d  + logabsdet_s2d  + alpha*distances
 
+def train_flow_L2_loss(flow, checkpoint_path, optimizer, scheduler, cos_anneal_sched, val_sched, train_dataset, val_dataset, device, n_epochs, batch_size, seed, alpha, early_stop = True, patience = 5):
     
-     
-    
-    return log_prob_s2d  + logabsdet_s2d 
-
-def train_flow_L2_loss(flow, checkpoint_path, optimizer, scheduler, cos_anneal_sched, val_sched, train_dataset, val_dataset, device, n_epochs, batch_size, seed, early_stop = True, patience = 5):
+    print("Training flow with L2 loss term ...")
     
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -200,7 +179,7 @@ def train_flow_L2_loss(flow, checkpoint_path, optimizer, scheduler, cos_anneal_s
             data = data.to(device)
             feats = data[:,:-1].float()
             cont = torch.reshape(data[:,-1], (-1, 1)).float()
-            loss = -with_L2_loss(flow, feats, context, alpha = 0.01).mean()
+            loss = -with_L2_loss(flow, feats, cont, alpha).mean()
             losses_batch_per_e.append(loss.detach().cpu().numpy())
             optimizer.zero_grad()       
             loss.backward()
@@ -223,7 +202,7 @@ def train_flow_L2_loss(flow, checkpoint_path, optimizer, scheduler, cos_anneal_s
                     optimizer.zero_grad()       
                     feats = data[:,:-1].float()
                     cont = torch.reshape(data[:,-1], (-1, 1)).float()
-                    val_loss = -with_L2_loss(flow, feats, context, alpha = 0.01).mean()
+                    val_loss = -with_L2_loss(flow, feats, cont, alpha).mean()
                     val_losses_batch_per_e.append(val_loss.detach().cpu().numpy())
                
                 # store the loss

@@ -149,11 +149,11 @@ def main(message):
     base_dist_sim = StandardNormal(shape=[n_features])
 
     # Create and train
-    create_and_train_flow("BDSIM", BD_sim_training_dir, transforms_BD_sim, base_dist_sim, hyperparameters_dict_BD_sim, device, sim_train_dataset, sim_val_dataset, early_stop = False, seed = seed)
+    #create_and_train_flow("BDSIM", BD_sim_training_dir, transforms_BD_sim, base_dist_sim, hyperparameters_dict_BD_sim, device, sim_train_dataset, sim_val_dataset, early_stop = False, seed = seed)
 
-    make_base_density_samples(hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, BD_sim_samples_dir, device, bands_dict, n_features, dataset_sim, binning_scheme)
+    #make_base_density_samples(hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, BD_sim_samples_dir, device, bands_dict, n_features, dataset_sim, binning_scheme)
 
-    evaluate_base_density(BD_sim_samples_dir, hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, device, bands_dict, n_features, dataset_sim, binning_scheme, hyperparameters_dict_eval, use_old_CC = use_old_CC)
+    #evaluate_base_density(BD_sim_samples_dir, hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, device, bands_dict, n_features, dataset_sim, binning_scheme, hyperparameters_dict_eval, use_old_CC = use_old_CC)
 
 
     """
@@ -196,13 +196,16 @@ def main(message):
 
     # Create and train
     """
-    FIRST LEARN SIM -> SIM
+    FIRST LEARN SIM -> SIM, THEN SIM -> DAT
     """
-    create_and_train_flow("TRANS", s2s_training_dir, transforms_s2d, flow_BD, hyperparameters_dict_s2d, device, sim_train_dataset, sim_val_dataset, early_stop = False, seed = seed)
+    
+    create_and_double_train_flow("TRANS", s2s_training_dir, s2d_training_dir, transforms_s2d, flow_BD, hyperparameters_dict_s2d, device, sim_train_dataset, sim_val_dataset, dat_train_dataset, dat_val_dataset, early_stop = False, seed = 2515)
+    
+    make_s2d_samples(hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, BD_sim_training_dir, s2s_training_dir, s2s_training_dir, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, direct = False)
 
-    """
-    THEN LEARN SIM -> DAT
-    """
+    make_s2d_samples(hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, BD_sim_training_dir, s2d_training_dir, s2d_training_dir, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, direct = False)
+    
+
 
     """
     "
@@ -212,11 +215,9 @@ def main(message):
     "
     """
     
+
     
-    #make_s2d_samples(hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, BD_sim_training_dir, s2d_training_dir, s2d_training_dir, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, direct = False)
-    
-    
-    #evaluate_s2d(s2d_samples_dir, s2d_training_dir, hyperparameters_dict_eval, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, use_old_CC = use_old_CC)
+    evaluate_s2d(s2d_samples_dir, s2d_training_dir, hyperparameters_dict_eval, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, use_old_CC = use_old_CC)
     
     return(message)
 

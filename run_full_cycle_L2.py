@@ -149,11 +149,11 @@ def main(message):
     base_dist_sim = StandardNormal(shape=[n_features])
 
     # Create and train
-    create_and_train_flow("BDSIM", BD_sim_training_dir, transforms_BD_sim, base_dist_sim, hyperparameters_dict_BD_sim, device, sim_train_dataset, sim_val_dataset, early_stop = False, seed = seed)
+    #create_and_train_flow("BDSIM", BD_sim_training_dir, transforms_BD_sim, base_dist_sim, hyperparameters_dict_BD_sim, device, sim_train_dataset, sim_val_dataset, early_stop = False, seed = seed)
 
-    make_base_density_samples(hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, BD_sim_samples_dir, device, bands_dict, n_features, dataset_sim, binning_scheme)
+    #make_base_density_samples(hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, BD_sim_samples_dir, device, bands_dict, n_features, dataset_sim, binning_scheme)
 
-    evaluate_base_density(BD_sim_samples_dir, hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, device, bands_dict, n_features, dataset_sim, binning_scheme, hyperparameters_dict_eval, use_old_CC = use_old_CC)
+    #evaluate_base_density(BD_sim_samples_dir, hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, device, bands_dict, n_features, dataset_sim, binning_scheme, hyperparameters_dict_eval, use_old_CC = use_old_CC)
 
 
     """
@@ -166,17 +166,20 @@ def main(message):
 
     # Training s2d
     # This will be another (of many) subdirectory in saved_models/
+    
+    alpha = 0.1
 
     num_layers_s2d = 2
     num_nodes_s2d = 16
     hyperparameters_dict_s2d = {"n_epochs": 30,
                               "batch_size": 256,
                               "lr": 0.0004,
-                              "weight_decay": 0.0001}
+                              "weight_decay": 0.0001,
+                               "alpha": alpha}
     
     loc_id_s2d = f"PRQ_Coupling_{num_layers_s2d}layers_{num_nodes_s2d}nodes_{seed}seed"
     # training dir is inside the BD dir
-    s2d_training_dir = os.path.join(BD_sim_training_dir, f"saved_models_{loc_id_s2d}/")
+    s2d_training_dir = os.path.join(BD_sim_training_dir, f"saved_models_TRANS_{seed}seed_{alpha}alpha/")
     s2d_samples_dir = os.path.join(s2d_training_dir, f"npy_samples/")
     
     # Define a flow architecture
@@ -192,7 +195,7 @@ def main(message):
     flow_BD.eval()
 
     # Create and train
-    #create_and_train_flow("TRANS", s2d_training_dir, transforms_s2d, flow_BD, hyperparameters_dict_s2d, device, dat_train_dataset, dat_val_dataset, early_stop = False, seed = seed)
+    create_and_train_flow("TRANS", s2d_training_dir, transforms_s2d, flow_BD, hyperparameters_dict_s2d, device, dat_train_dataset, dat_val_dataset, early_stop = False, seed = seed, L2 = True)
 
 
     """
@@ -204,10 +207,10 @@ def main(message):
     """
     
     
-    #make_s2d_samples(hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, BD_sim_training_dir, s2d_training_dir, s2d_training_dir, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, direct = False)
+    make_s2d_samples(hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, BD_sim_training_dir, s2d_training_dir, s2d_training_dir, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, direct = False)
     
     
-    #evaluate_s2d(s2d_samples_dir, s2d_training_dir, hyperparameters_dict_eval, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, use_old_CC = use_old_CC)
+    evaluate_s2d(s2d_samples_dir, s2d_training_dir, hyperparameters_dict_eval, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, use_old_CC = use_old_CC)
     
     return(message)
 
