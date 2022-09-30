@@ -12,7 +12,7 @@ from numba import cuda
 
 from helpers.composite_helpers import *
 
-message = "initializeI"
+message = "1, 0.01"
 
 webhook_url = "https://hooks.slack.com/services/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"
 @slack_sender(webhook_url=webhook_url, channel="is-my-code-done", user_mentions=["@Radha Mastandrea"])
@@ -26,7 +26,7 @@ def main(message):
     """
     """
 
-    os.environ["CUDA_VISIBLE_DEVICES"]="3"
+    os.environ["CUDA_VISIBLE_DEVICES"]="0"
     device = cuda.get_current_device()
     device.reset()
 
@@ -37,7 +37,8 @@ def main(message):
     device = torch.device( "cuda" if torch.cuda.is_available() else "cpu")
     print( "Using device: " + str( device ), flush=True)
 
-    seed = 1
+    seed = 5
+    alpha = .01
  
 
     """
@@ -48,11 +49,13 @@ def main(message):
     """
     """
 
-    hyperparameters_dict_eval = {"n_epochs": 70,
+    hyperparameters_dict_eval = {"n_epochs": 20,
                               "batch_size": 128,
-                              "lr": 0.0005,
+                              "lr": 0.001,
                               "num_bootstrap": 1,
-                                "patience": 10}
+                                "patience": 10
+                                }
+    
     
     use_old_CC = True
 
@@ -132,17 +135,21 @@ def main(message):
 
     num_layers_BD_sim = 8
     num_hidden_features_BD_sim = 64
-    hyperparameters_dict_BD_sim = {"n_epochs": 50,
+    hyperparameters_dict_BD_sim = {"n_epochs": 60,
                               "batch_size": 128,
                               "lr": 0.0001,
                               "weight_decay": 0.0001}
 
-    loc_id_BD_sim = f"BD_sim_Masked_PRQ_AR_{num_layers_BD_sim}layers_{num_hidden_features_BD_sim}hidden_{seed}seed"
-    BD_sim_training_dir = os.path.join(exp_dir, f"saved_models_BD_sim_II_{seed}seed/")
+    loc_id_BD_sim = f"baseline_BDSIM_{seed}seed"
+    BD_sim_training_dir = os.path.join(exp_dir, f"saved_models_{loc_id_BD_sim}/")
     BD_sim_samples_dir = os.path.join(BD_sim_training_dir, f"npy_samples/")
     
     config_string_BD_sim = "epochs{0}_lr{1}_wd{2}_bs{3}".format(hyperparameters_dict_BD_sim["n_epochs"], hyperparameters_dict_BD_sim["lr"], hyperparameters_dict_BD_sim["weight_decay"], hyperparameters_dict_BD_sim["batch_size"])
     checkpoint_path_BD_sim = os.path.join(BD_sim_training_dir, f"BDSIM_{config_string_BD_sim}")
+    
+    # Define a flow architecture
+    transforms_BD_sim = make_masked_AR_flow(num_layers_BD_sim, n_features, num_hidden_features_BD_sim)
+    base_dist_sim = StandardNormal(shape=[n_features])
     
     # Define a flow architecture
     transforms_BD_sim = make_masked_AR_flow(num_layers_BD_sim, n_features, num_hidden_features_BD_sim)
@@ -169,17 +176,18 @@ def main(message):
 
     num_layers_s2d = 2
     num_nodes_s2d = 16
-    hyperparameters_dict_s2d = {"n_epochs": 30,
+    hyperparameters_dict_s2d = {"n_epochs": 40,
                               "batch_size": 256,
                               "lr": 0.0004,
                               "weight_decay": 0.0001}
     
-    loc_id_s2d = f"PRQ_Coupling_{num_layers_s2d}layers_{num_nodes_s2d}nodes_{seed}seed"
+    loc_id_s2d = f"s2d_II_{seed}seed"
     # training dir is inside the BD dir
-    s2s_training_dir = os.path.join(BD_sim_training_dir, f"saved_models_SIM2SIM_{seed}seed/")
+    s2s_training_dir = os.path.join(BD_sim_training_dir, f"saved_models_II_SIM2SIM_{seed}seed/")
     s2s_samples_dir = os.path.join(s2s_training_dir, f"npy_samples/")
     
-    s2d_training_dir = os.path.join(BD_sim_training_dir, f"saved_models_SIM2DAT_{seed}seed/")
+    #s2d_training_dir = os.path.join(BD_sim_training_dir, f"saved_models_SIM2DAT_{seed}seed/")
+    s2d_training_dir = os.path.join(BD_sim_training_dir, f"saved_models_II_SIM2DAT_{seed}seed/")
     s2d_samples_dir = os.path.join(s2d_training_dir, f"npy_samples/")
     
     # Define a flow architecture
@@ -196,13 +204,34 @@ def main(message):
 
     # Create and train
     """
-    FIRST LEARN SIM -> SIM, THEN SIM -> DAT
+    FIRST LEARN SIM -> SIM
     """
     
-    create_and_double_train_flow("TRANS", s2s_training_dir, s2d_training_dir, transforms_s2d, flow_BD, hyperparameters_dict_s2d, device, sim_train_dataset, sim_val_dataset, dat_train_dataset, dat_val_dataset, early_stop = False, seed = 2515)
+    create_and_train_flow("TRANS", s2s_training_dir, transforms_s2d, flow_BD, hyperparameters_dict_s2d, device, sim_train_dataset, sim_val_dataset, early_stop = False, seed = seed)
     
     make_s2d_samples(hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, BD_sim_training_dir, s2s_training_dir, s2s_training_dir, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, direct = False)
+    
+    evaluate_s2d(s2s_samples_dir, s2s_training_dir, hyperparameters_dict_eval, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, use_old_CC = use_old_CC)
+    
+    """
+    THEN LEARN SIM -> DAT
+    """
+    
 
+    
+    config_string_s2s = "epochs{0}_lr{1}_wd{2}_bs{3}".format(hyperparameters_dict_s2d["n_epochs"], hyperparameters_dict_s2d["lr"], hyperparameters_dict_s2d["weight_decay"], hyperparameters_dict_s2d["batch_size"])
+    checkpoint_path_s2s = os.path.join(s2s_training_dir, f"TRANS_{config_string_s2s}")
+    
+
+    hyperparameters_dict_s2d = {"n_epochs": 40,
+                              "batch_size": 256,
+                              "lr": 0.0004,
+                              "weight_decay": 0.0001,
+                               "alpha": alpha}
+    print(checkpoint_path_s2s)
+    
+    continue_to_train_flow("TRANS", checkpoint_path_s2s, s2d_training_dir, hyperparameters_dict_s2d, device, dat_train_dataset, dat_val_dataset, early_stop = False, L2 = False, seed = seed)
+    
     make_s2d_samples(hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, BD_sim_training_dir, s2d_training_dir, s2d_training_dir, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, direct = False)
     
 

@@ -59,7 +59,7 @@ def make_sim_BD_sample_plots(img_dir, sim_samples, BD_samples, binning_scheme, p
     
 def make_SIM_transDAT_plots(img_dir, sim_samples, transformed_sim_samples, dat_samples, binning_scheme, bands_to_plot):
     
-    pp = PdfPages(os.path.join(img_dir, "SIM_transSIM_DAT_samples.pdf"))
+    pp = PdfPages(os.path.join(img_dir, F"SIM_transSIM_DAT_samples_{str(bands_to_plot)}.pdf"))
 
     alpha = 0.5
     n_features = sim_samples[bands_to_plot[0]].shape[-1]
@@ -102,9 +102,9 @@ def make_SIM_transDAT_plots(img_dir, sim_samples, transformed_sim_samples, dat_s
     pp.close()
     
     
-def make_BD_transBD_plots(img_dir, BD_samples, transformed_BD_samples, dat_samples, binning_scheme):
+def make_BD_transBD_plots(img_dir, BD_samples, transformed_BD_samples, dat_samples, binning_scheme, bands_to_plot):
     
-    pp = PdfPages(os.path.join(img_dir, "BD_transBD_DAT_samples.pdf"))
+    pp = PdfPages(os.path.join(img_dir, f"BD_transBD_DAT_samples_{str(bands_to_plot)}.pdf"))
 
     alpha = 0.5
     n_features = BD_samples.shape[-1]

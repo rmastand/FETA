@@ -54,15 +54,18 @@ def transform_sim_to_dat_direct(flow_SIM, flow_DAT, sim_input, device):
     return outputs_dat_target.detach().cpu().numpy()
 
 
-def make_BD_samples_dict(bands_dict, n_features, dataset_sim, bd_flow, device):
+def make_BD_samples_dict(bands_to_sample, bands_dict, n_features, dataset_sim, bd_flow, device):
     """
     returns 2 arrays
     sim_samples: SB1 + SB2 samples from SIM data (what was used to train the base density)
     BD_samples: samples from the base density, using the masses from sim_samples as context
     
     """
+    
+    bands_edges = [bands_dict[band] for band in bands_to_sample]
+    
     # create the sim_samples
-    sim_samples = dataset_sim.pull_from_mass_range([bands_dict["sb1"], bands_dict["sb2"]])
+    sim_samples = dataset_sim.pull_from_mass_range(bands_edges)
     sim_samples.minmaxscale()
 
     # extract the (preprocessd) mass
@@ -332,7 +335,11 @@ def analyze_band_transforms_CURTAILS_old(band, idd, transformed_sim_samples, dat
     
     scores_df = oldCC.assign_scores(transformed_sim_samples, dat_samples, classifier_band_dir, n_epochs=n_epochs, batch_size=batch_size, lr=lr, visualize = visualize)
     
-    auc = oldCC.get_classification(scores_df)
+    auc, fpr, tpr = oldCC.get_classification(scores_df)
+    
+    # save out the fpr, tpr
+    np.save(os.path.join(classifier_band_dir, "fpr.npy"), fpr)
+    np.save(os.path.join(classifier_band_dir, "tpr.npy"), tpr)
     
     if auc < 0.5:
         return 1.0 - auc

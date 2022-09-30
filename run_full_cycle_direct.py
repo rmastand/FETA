@@ -28,7 +28,7 @@ def main(message):
     """
     """
 
-    os.environ["CUDA_VISIBLE_DEVICES"]="0"
+    os.environ["CUDA_VISIBLE_DEVICES"]="2"
     device = cuda.get_current_device()
     device.reset()
 
@@ -39,7 +39,7 @@ def main(message):
     device = torch.device( "cuda" if torch.cuda.is_available() else "cpu")
     print( "Using device: " + str( device ), flush=True)
 
-    seed = 4
+    seed = 5
   
 
 
@@ -51,21 +51,22 @@ def main(message):
     """
     """
 
-    hyperparameters_dict_eval = {"n_epochs": 70,
-                              "batch_size": 256,
-                              "lr": 0.0005,
+    hyperparameters_dict_eval = {"n_epochs": 20,
+                              "batch_size": 128,
+                              "lr": 0.001,
                               "num_bootstrap": 1,
-                               "patience": 10}
-
+                                "patience": 100000
+                                }
+    
     use_old_CC = True
 
     # directories
 
     curtains_dir = "/global/home/users/rrmastandrea/CURTAINS_SALAD/"
 
-    n_points = 100000
     n_features = 5
-    dataset_config_string = f"LHCO_direct/"
+    num_signal_to_inject = 0
+    dataset_config_string = f"LHCO_{num_signal_to_inject}sig/"
 
     exp_dir = os.path.join(curtains_dir, dataset_config_string)
     data_dir = os.path.join(exp_dir, "data")
@@ -130,28 +131,32 @@ def main(message):
     """
 
     # Training SIM base density
-    num_layers_BD_sim = 2
-    num_hidden_features_BD_sim = 16
-    num_nodes_BD_sim = 16
-    hyperparameters_dict_BD_sim = {"n_epochs": 20,
-                                  "batch_size": 256,
-                                  "lr": 0.0005,
-                                  "weight_decay": 0.0001}
+    num_layers_BD_sim = 8
+    num_hidden_features_BD_sim = 64
+    hyperparameters_dict_BD_sim = {"n_epochs": 60,
+                              "batch_size": 128,
+                              "lr": 0.0001,
+                              "weight_decay": 0.0001}
 
-    loc_id_BD_sim = f"BD_sim_joint_{num_layers_BD_sim}layers_{num_hidden_features_BD_sim}hidden_{num_nodes_BD_sim}nodes_LRCos"
-    BD_sim_training_dir = os.path.join(exp_dir, f"saved_models_{loc_id_BD_sim}_seed{seed}/")
+    loc_id_BD_sim = f"baseline_BDSIM_{seed}seed"
+    BD_sim_training_dir = os.path.join(exp_dir, f"saved_models_{loc_id_BD_sim}/")
     BD_sim_samples_dir = os.path.join(BD_sim_training_dir, f"npy_samples/")
-
-    # Define a flow architecture
-    transforms_BD_sim = make_joint_flow(num_layers_BD_sim, n_features, num_hidden_features_BD_sim, num_nodes_BD_sim)
-    base_dist_sim = StandardNormal(shape=[n_features])
     
+    config_string_BD_sim = "epochs{0}_lr{1}_wd{2}_bs{3}".format(hyperparameters_dict_BD_sim["n_epochs"], hyperparameters_dict_BD_sim["lr"], hyperparameters_dict_BD_sim["weight_decay"], hyperparameters_dict_BD_sim["batch_size"])
+    checkpoint_path_BD_sim = os.path.join(BD_sim_training_dir, f"BDSIM_{config_string_BD_sim}")
+    
+    # Define a flow architecture
+    transforms_BD_sim = make_masked_AR_flow(num_layers_BD_sim, n_features, num_hidden_features_BD_sim)
+    base_dist_sim = StandardNormal(shape=[n_features])
+
     # Create and train
-    create_and_train_flow("BDSIM", BD_sim_training_dir, transforms_BD_sim, base_dist_sim, hyperparameters_dict_BD_sim, device, sim_train_dataset, sim_val_dataset, early_stop = False, seed = seed)
+    #create_and_train_flow("BDSIM", BD_sim_training_dir, transforms_BD_sim, base_dist_sim, hyperparameters_dict_BD_sim, device, sim_train_dataset, sim_val_dataset, early_stop = False, seed = seed)
 
-    make_base_density_samples(hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, BD_sim_samples_dir, device, bands_dict, n_features, dataset_sim, binning_scheme)
+    #make_base_density_samples(hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, BD_sim_samples_dir, device, bands_dict, n_features, dataset_sim, binning_scheme)
 
-    evaluate_base_density(BD_sim_samples_dir, hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, device, bands_dict, n_features, dataset_sim, binning_scheme, hyperparameters_dict_eval, use_old_CC = use_old_CC)
+    #evaluate_base_density(BD_sim_samples_dir, hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, device, bands_dict, n_features, dataset_sim, binning_scheme, hyperparameters_dict_eval, use_old_CC = use_old_CC)
+
+
 
 
     """
@@ -161,31 +166,31 @@ def main(message):
     "
     "
     """
+    num_layers_BD_dat = 8
+    num_hidden_features_BD_dat = 64
+    hyperparameters_dict_BD_dat = {"n_epochs": 60,
+                              "batch_size": 128,
+                              "lr": 0.0001,
+                              "weight_decay": 0.0001}
 
-    # Training DAT base density
-    num_layers_BD_dat = 2
-    num_hidden_features_BD_dat = 16
-    num_nodes_BD_dat = 16
-    hyperparameters_dict_BD_dat = {"n_epochs": 20,
-                                  "batch_size": 256,
-                                  "lr": 0.0005,
-                                  "weight_decay": 0.0001}
-
-    loc_id_BD_dat = f"BD_dat_joint_{num_layers_BD_dat}layers_{num_hidden_features_BD_dat}hidden_{num_nodes_BD_dat}nodes_LRCos"
-    BD_dat_training_dir = os.path.join(exp_dir, f"saved_models_{loc_id_BD_dat}_seed{seed}/")
+    loc_id_BD_dat = f"baseline_BDDAT_{seed}seed"
+    BD_dat_training_dir = os.path.join(exp_dir, f"saved_models_{loc_id_BD_dat}/")
     BD_dat_samples_dir = os.path.join(BD_dat_training_dir, f"npy_samples/")
-
+    
+    config_string_BD_dat = "epochs{0}_lr{1}_wd{2}_bs{3}".format(hyperparameters_dict_BD_dat["n_epochs"], hyperparameters_dict_BD_dat["lr"], hyperparameters_dict_BD_dat["weight_decay"], hyperparameters_dict_BD_dat["batch_size"])
+    checkpoint_path_BD_dat = os.path.join(BD_dat_training_dir, f"BDSIM_{config_string_BD_dat}")
+    
     # Define a flow architecture
-    transforms_BD_dat = make_joint_flow(num_layers_BD_dat, n_features, num_hidden_features_BD_dat, num_nodes_BD_dat)
+    transforms_BD_dat = make_masked_AR_flow(num_layers_BD_dat, n_features, num_hidden_features_BD_dat)
     base_dist_dat = StandardNormal(shape=[n_features])
 
     # Create and train
-    
     create_and_train_flow("BDDAT", BD_dat_training_dir, transforms_BD_dat, base_dist_dat, hyperparameters_dict_BD_dat, device, dat_train_dataset, dat_val_dataset, early_stop = False, seed = seed)
 
     make_base_density_samples(hyperparameters_dict_BD_dat, "BDDAT", BD_dat_training_dir, BD_dat_samples_dir, device, bands_dict, n_features, dataset_dat, binning_scheme)
-    
-    evaluate_base_density(BD_dat_samples_dir, hyperparameters_dict_BD_dat, "BDDAT", BD_dat_training_dir, device, bands_dict, n_features, dataset_sim, binning_scheme, hyperparameters_dict_eval, use_old_CC = use_old_CC)
+
+    evaluate_base_density(BD_dat_samples_dir, hyperparameters_dict_BD_dat, "BDDAT", BD_dat_training_dir, device, bands_dict, n_features, dataset_dat, binning_scheme, hyperparameters_dict_eval, use_old_CC = use_old_CC)
+
     
 
     """

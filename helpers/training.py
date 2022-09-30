@@ -136,7 +136,10 @@ def with_L2_loss(tflow, inputs, context, alpha):
     distance_mat = inputs - SIM_attempt
     distances = torch.linalg.norm(distance_mat, axis = 1)
     
-    return log_prob_s2d  + logabsdet_s2d  + alpha*distances
+    # the regular NF loss is -1 * log prob
+    # we're going to call -(this) the loss, so we subtract the distance cost
+    
+    return log_prob_s2d  + logabsdet_s2d  - alpha*distances
 
 def train_flow_L2_loss(flow, checkpoint_path, optimizer, scheduler, cos_anneal_sched, val_sched, train_dataset, val_dataset, device, n_epochs, batch_size, seed, alpha, early_stop = True, patience = 5):
     

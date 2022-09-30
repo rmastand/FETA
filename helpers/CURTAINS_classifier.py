@@ -387,4 +387,4 @@ def get_classification(scores):
     
     fpr, tpr, _ = roc_curve(scores['SoTLabel'], scores['predictions'])
     roc_auc = auc(fpr, tpr)
-    return roc_auc
+    return roc_auc, fpr, tpr

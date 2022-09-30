@@ -26,7 +26,7 @@ def main(message):
     """
     """
 
-    os.environ["CUDA_VISIBLE_DEVICES"]="2"
+    os.environ["CUDA_VISIBLE_DEVICES"]="3"
     device = cuda.get_current_device()
     device.reset()
 
@@ -37,7 +37,7 @@ def main(message):
     device = torch.device( "cuda" if torch.cuda.is_available() else "cpu")
     print( "Using device: " + str( device ), flush=True)
 
-    seed = 1
+    seed = 4
  
 
     """
@@ -52,11 +52,10 @@ def main(message):
                               "batch_size": 128,
                               "lr": 0.001,
                               "num_bootstrap": 1,
-                               "patience": 10
+                                "patience": 100000
                                 }
     
     use_old_CC = True
-
 
     # directories
 
@@ -64,12 +63,10 @@ def main(message):
 
     n_features = 5
     num_signal_to_inject = 0
-    dataset_config_string = f"LHCO_{num_signal_to_inject}sig_f/"
-    STS_config_sting = f"LHCO_STS/"
+    dataset_config_string = f"LHCO_{num_signal_to_inject}sig/"
 
     exp_dir = os.path.join(curtains_dir, dataset_config_string)
     data_dir = os.path.join(exp_dir, "data")
-    STS_dir = os.path.join(curtains_dir, STS_config_sting, "data")
 
     print("Making results directory at", exp_dir, "...")
     os.makedirs(exp_dir, exist_ok=True)
@@ -95,28 +92,32 @@ def main(message):
     """
     """
 
-    npull_dataset_train_sim = ToyDataset(data_dir, "train_sim.npy")
-    npull_dataset_val_sim = ToyDataset(data_dir, "val_sim.npy")
-    npull_dataset_train_dat = ToyDataset(data_dir, "train_dat.npy")
-    npull_dataset_val_dat = ToyDataset(data_dir, "val_dat.npy")
+    dataset_sim = ToyDataset(data_dir, "data_sim.npy")
+    dataset_dat = ToyDataset(data_dir, "data_dat.npy")
 
-    print("Num SIM events in SB:", len(npull_dataset_train_sim)+len(npull_dataset_val_sim))
-    print("Num DAT events in SB:", len(npull_dataset_train_dat)+len(npull_dataset_val_dat))
+    print("Num SIM events:", len(dataset_sim))
+    print("Num DAT events:", len(dataset_dat))
     print()
 
+    # Pull data from SB1 + SB2
+    training_dataset_sim = dataset_sim.pull_from_mass_range([bands_dict["sb1"], bands_dict["sb2"]])
+    training_dataset_dat = dataset_dat.pull_from_mass_range([bands_dict["sb1"], bands_dict["sb2"]])
+
+    print("SIM sb1 + sb2 shape:", len(training_dataset_sim))
+    print("DAT sb1 + sb2 shape:", len(training_dataset_dat))
+    print()
 
     # Preprocess the data
     print("Preproccessing data...")
     print()
-    dataset_train_sim = npull_dataset_train_sim.pull_from_mass_range([bands_dict["sb1"], bands_dict["sb2"]])
-    dataset_val_sim = npull_dataset_val_sim.pull_from_mass_range([bands_dict["sb1"], bands_dict["sb2"]])
-    dataset_train_dat = npull_dataset_train_dat.pull_from_mass_range([bands_dict["sb1"], bands_dict["sb2"]])
-    dataset_val_dat = npull_dataset_val_dat.pull_from_mass_range([bands_dict["sb1"], bands_dict["sb2"]])
+    training_dataset_sim.minmaxscale()
+    training_dataset_dat.minmaxscale()
 
-    dataset_train_sim.minmaxscale()
-    dataset_val_sim.minmaxscale()
-    dataset_train_dat.minmaxscale()
-    dataset_val_dat.minmaxscale()
+
+    # train-val split
+    val_size = 0.2
+    sim_train_dataset, sim_val_dataset = make_train_val_split(training_dataset_sim, val_size)
+    dat_train_dataset, dat_val_dataset = make_train_val_split(training_dataset_dat, val_size)
 
     """
     "
@@ -133,10 +134,10 @@ def main(message):
     num_hidden_features_BD_sim = 64
     hyperparameters_dict_BD_sim = {"n_epochs": 60,
                               "batch_size": 128,
-                              "lr": 0.0005,
-                              "weight_decay": 0.001}
+                              "lr": 0.0001,
+                              "weight_decay": 0.0001}
 
-    loc_id_BD_sim = f"BD_sim_Masked_PRQ_AR_{num_layers_BD_sim}layers_{num_hidden_features_BD_sim}hidden_{seed}seed"
+    loc_id_BD_sim = f"baseline_BDSIM_{seed}seed"
     BD_sim_training_dir = os.path.join(exp_dir, f"saved_models_{loc_id_BD_sim}/")
     BD_sim_samples_dir = os.path.join(BD_sim_training_dir, f"npy_samples/")
     
@@ -148,17 +149,17 @@ def main(message):
     base_dist_sim = StandardNormal(shape=[n_features])
 
     # Create and train
-    #create_and_train_flow("BDSIM", BD_sim_training_dir, transforms_BD_sim, base_dist_sim, hyperparameters_dict_BD_sim, device, dataset_train_sim, dataset_val_sim, early_stop = True, seed = seed)
+    #create_and_train_flow("BDSIM", BD_sim_training_dir, transforms_BD_sim, base_dist_sim, hyperparameters_dict_BD_sim, device, sim_train_dataset, sim_val_dataset, early_stop = False, seed = seed)
 
-    #make_base_density_samples(hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, BD_sim_samples_dir, device, bands_dict, n_features, npull_dataset_val_sim, binning_scheme)
+    #make_base_density_samples(hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, BD_sim_samples_dir, device, bands_dict, n_features, dataset_sim, binning_scheme)
 
-    #evaluate_base_density(BD_sim_samples_dir, hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, device, bands_dict, n_features, hyperparameters_dict_eval, use_old_CC = use_old_CC)
+    evaluate_base_density(BD_sim_samples_dir, hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, device, bands_dict, n_features, dataset_sim, binning_scheme, hyperparameters_dict_eval, use_old_CC = use_old_CC)
 
 
     """
     "
     "
-    LEARN SIM -> DAT ON SB
+    LEARN SIM -> DAT
     "
     "
     """
@@ -173,7 +174,8 @@ def main(message):
                               "lr": 0.0004,
                               "weight_decay": 0.0001}
     
-    loc_id_s2d = f"PRQ_Coupling_{num_layers_s2d}layers_{num_nodes_s2d}nodes_{seed}seed"
+    #loc_id_s2d = f"PRQ_Coupling_{num_layers_s2d}layers_{num_nodes_s2d}nodes_{seed}seed"
+    loc_id_s2d = f"baseline_SIM2DAT_{seed}seed"
     # training dir is inside the BD dir
     s2d_training_dir = os.path.join(BD_sim_training_dir, f"saved_models_{loc_id_s2d}/")
     s2d_samples_dir = os.path.join(s2d_training_dir, f"npy_samples/")
@@ -191,43 +193,22 @@ def main(message):
     flow_BD.eval()
 
     # Create and train
-    #create_and_train_flow("TRANS", s2d_training_dir, transforms_s2d, flow_BD, hyperparameters_dict_s2d, device, dataset_train_dat, dataset_val_dat, early_stop = True, seed = seed)
+    create_and_train_flow("TRANS", s2d_training_dir, transforms_s2d, flow_BD, hyperparameters_dict_s2d, device, dat_train_dataset, dat_val_dataset, early_stop = False, seed = seed)
 
 
     """
     "
     "
-    EVALUATE SIM -> DAT ON SB
+    EVALUATE SIM -> DAT
     "
     "
     """
     
     
-    #make_s2d_samples(["sb1", "sb2"], hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, BD_sim_training_dir, s2d_training_dir, s2d_training_dir, device, bands_dict, n_features, npull_dataset_val_sim, npull_dataset_val_dat, binning_scheme, direct = False)
+    make_s2d_samples(hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, BD_sim_training_dir, s2d_training_dir, s2d_training_dir, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, direct = False)
     
     
-    evaluate_s2d(["sb1", "sb2"], s2d_samples_dir, s2d_training_dir, hyperparameters_dict_eval, device, bands_dict, n_features, use_old_CC = use_old_CC)
-    
-    """
-    "
-    "
-    EVALUATE SIM -> DAT ON SR
-    "
-    "
-    """
-    
-    
-    
-    classif_train_sim = ToyDataset(data_dir, "classif_train_sim.npy")
-    classif_train_dat = ToyDataset(data_dir, "classif_train_dat.npy")
-
-
-    #make_s2d_samples(["sr"], hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, BD_sim_training_dir, s2d_training_dir, s2d_training_dir, device, bands_dict, n_features, classif_train_sim, classif_train_dat, binning_scheme, direct = False)
-    
-    #evaluate_s2d(["sr"], s2d_samples_dir, s2d_training_dir, hyperparameters_dict_eval, device, bands_dict, n_features, use_old_CC = use_old_CC)
- 
- 
-    
+    evaluate_s2d(s2d_samples_dir, s2d_training_dir, hyperparameters_dict_eval, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, use_old_CC = use_old_CC)
     
     return(message)
 

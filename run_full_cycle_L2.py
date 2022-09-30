@@ -26,7 +26,7 @@ def main(message):
     """
     """
 
-    os.environ["CUDA_VISIBLE_DEVICES"]="0"
+    os.environ["CUDA_VISIBLE_DEVICES"]= "3"
     device = cuda.get_current_device()
     device.reset()
 
@@ -37,7 +37,8 @@ def main(message):
     device = torch.device( "cuda" if torch.cuda.is_available() else "cpu")
     print( "Using device: " + str( device ), flush=True)
 
-    seed = 1
+    seed = 5
+    alpha = .01
  
 
     """
@@ -48,14 +49,14 @@ def main(message):
     """
     """
 
-    hyperparameters_dict_eval = {"n_epochs": 70,
+    hyperparameters_dict_eval = {"n_epochs": 20,
                               "batch_size": 128,
-                              "lr": 0.0005,
+                              "lr": 0.001,
                               "num_bootstrap": 1,
-                                "patience": 10}
+                                "patience": 10
+                                }
     
     use_old_CC = True
-
 
     # directories
 
@@ -132,13 +133,13 @@ def main(message):
 
     num_layers_BD_sim = 8
     num_hidden_features_BD_sim = 64
-    hyperparameters_dict_BD_sim = {"n_epochs": 50,
+    hyperparameters_dict_BD_sim = {"n_epochs": 60,
                               "batch_size": 128,
                               "lr": 0.0001,
                               "weight_decay": 0.0001}
 
-    loc_id_BD_sim = f"BD_sim_Masked_PRQ_AR_{num_layers_BD_sim}layers_{num_hidden_features_BD_sim}hidden_{seed}seed"
-    BD_sim_training_dir = os.path.join(exp_dir, f"saved_models_BD_sim_L2_{seed}seed/")
+    loc_id_BD_sim = f"baseline_BDSIM_{seed}seed"
+    BD_sim_training_dir = os.path.join(exp_dir, f"saved_models_{loc_id_BD_sim}/")
     BD_sim_samples_dir = os.path.join(BD_sim_training_dir, f"npy_samples/")
     
     config_string_BD_sim = "epochs{0}_lr{1}_wd{2}_bs{3}".format(hyperparameters_dict_BD_sim["n_epochs"], hyperparameters_dict_BD_sim["lr"], hyperparameters_dict_BD_sim["weight_decay"], hyperparameters_dict_BD_sim["batch_size"])
@@ -167,19 +168,19 @@ def main(message):
     # Training s2d
     # This will be another (of many) subdirectory in saved_models/
     
-    alpha = 0.1
+    
 
     num_layers_s2d = 2
     num_nodes_s2d = 16
-    hyperparameters_dict_s2d = {"n_epochs": 30,
+    hyperparameters_dict_s2d = {"n_epochs": 40,
                               "batch_size": 256,
                               "lr": 0.0004,
                               "weight_decay": 0.0001,
                                "alpha": alpha}
     
-    loc_id_s2d = f"PRQ_Coupling_{num_layers_s2d}layers_{num_nodes_s2d}nodes_{seed}seed"
+    loc_id_s2d = f"s2d_L2_{seed}seed"
     # training dir is inside the BD dir
-    s2d_training_dir = os.path.join(BD_sim_training_dir, f"saved_models_TRANS_{seed}seed_{alpha}alpha/")
+    s2d_training_dir = os.path.join(BD_sim_training_dir, f"saved_models_s2d_L@_{seed}seed_{alpha}alpha/")
     s2d_samples_dir = os.path.join(s2d_training_dir, f"npy_samples/")
     
     # Define a flow architecture
@@ -195,7 +196,7 @@ def main(message):
     flow_BD.eval()
 
     # Create and train
-    create_and_train_flow("TRANS", s2d_training_dir, transforms_s2d, flow_BD, hyperparameters_dict_s2d, device, dat_train_dataset, dat_val_dataset, early_stop = False, seed = seed, L2 = True)
+    create_and_train_flow("TRANS", s2d_training_dir, transforms_s2d, flow_BD, hyperparameters_dict_s2d, device, dat_train_dataset, dat_val_dataset, early_stop = True, seed = seed, L2 = True)
 
 
     """
