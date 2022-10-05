@@ -192,10 +192,12 @@ class NeuralNet(nn.Module):
         return output
     
     
-def analyze_band_transform(band, transformed_sim_samples, dat_samples, n_features, n_epochs, batch_size, lr, patience, device, update_epochs = 1, early_stop = True, visualize = False):
+def analyze_band_transform(dir_to_save, idd, train_samp_1, train_samp_2, test_samp_1, test_samp_2, n_features, n_epochs, batch_size, lr, patience, device, update_epochs = 1, early_stop = True, visualize = True):
     
     #torch.manual_seed(8)
     #np.random.seed(8)
+    
+    print(f"Testing on {n_features} features...")
 
     dense_net = NeuralNet(input_shape = n_features)
     criterion = nn.BCELoss()
@@ -208,23 +210,35 @@ def analyze_band_transform(band, transformed_sim_samples, dat_samples, n_feature
     
     # transformed SIM has label 0, DAT has label 1
     # make the input and output data
-    nn_train_data = np.concatenate((transformed_sim_samples, dat_samples))
-    nn_train_labs = np.concatenate((torch.zeros((transformed_sim_samples.shape[0], 1)), torch.ones((dat_samples.shape[0],1))))
-
-    # shuffle the data
-    nn_train_data, nn_train_labs = shuffle(nn_train_data, nn_train_labs)
+    nn_train_data = np.concatenate((train_samp_1, train_samp_2))
+    nn_train_labs = np.concatenate((torch.zeros((train_samp_1.shape[0], 1)), torch.ones((train_samp_2.shape[0],1))))
     
     # train-test split
-    test_size = 0.1
-    val_size = 0.3
+    val_size = 0.2
     
     # train-val split
-    X_train, X_test, y_train, y_test = train_test_split(nn_train_data, nn_train_labs, test_size=test_size)
-    X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=val_size)
+    X_train, X_val, y_train, y_val = train_test_split(nn_train_data, nn_train_labs, test_size=val_size)
     
-    #print("Train data, labels shape:", X_train.shape, y_train.shape)
-    #print("Val data, labels shape:", X_val.shape, y_val.shape)
-    #print("Test data, labels  shape:", X_test.shape, y_test.shape)
+    # if no test data provided, use the val data
+    if (test_samp_1 == None) or (test_samp_2 == None):
+        print("Using val data as test data...")
+        X_test = X_val
+        y_test = t_val
+    else:
+        nn_test_data = np.concatenate((test_samp_1, test_samp_2))
+        nn_test_labs = np.concatenate((torch.zeros((test_samp_1.shape[0], 1)), torch.ones((test_samp_2.shape[0],1))))
+        # shuffle the data
+        nn_train_data, nn_train_labs = shuffle(nn_train_data, nn_train_labs)
+        X_test, Y_test = shuffle(nn_test_data, nn_test_labs)
+    
+    
+    print("Train data, labels shape:", X_train.shape, y_train.shape)
+    print("Val data, labels shape:", X_val.shape, y_val.shape)
+    print("Test data, labels  shape:", X_test.shape, Y_test.shape)
+    for i in range(X_train.shape[1]):
+        print(f"Feature {i} min, max for train: ({np.min(X_train[:,i])},{np.max(X_train[:,i])}), val: ({np.min(X_val[:,i])},{np.max(X_val[:,i])}), test: ({np.min(X_test[:,i])},{np.max(X_test[:,i])})")
+    print()
+    print()
     
 
     # send to device
@@ -291,14 +305,15 @@ def analyze_band_transform(band, transformed_sim_samples, dat_samples, n_feature
             break
 
     if visualize:
-        plt.figure()
-        plt.plot(epochs, losses)
-        plt.plot(epochs_val, losses_val, label = "val")
-        plt.legend()
-        plt.xlabel("Epoch")
-        plt.ylabel("Loss")
-        plt.title(band)
-        plt.show()
+        fig, ax = plt.subplots(1, 1, figsize=(7, 5))
+        ax.plot(epochs, losses)
+        ax.plot(epochs_val, losses_val, label = "val")
+        ax.legend()
+        ax.set_xlabel("Epoch")
+        ax.set_ylabel("Loss")
+        ax.set_title(idd)
+        fname = f"{dir_to_save}/losses_{idd}"
+        fig.savefig(fname)
 
     # evaluate
 
@@ -308,16 +323,20 @@ def analyze_band_transform(band, transformed_sim_samples, dat_samples, n_feature
         predicted = np.round(outputs)
 
         # calculate auc 
-        auc = roc_auc_score(y_test, outputs)
-        fpr, tpr, _ = roc_curve(y_test, outputs)
+        auc = roc_auc_score(Y_test, outputs)
+        fpr, tpr, _ = roc_curve(Y_test, outputs)
 
     if visualize:
-        plt.figure()
-        plt.plot(fpr, tpr)
-        plt.xlabel("FPR")
-        plt.xlabel("TPR")
-        plt.title("ROC: " + str(auc))
-        plt.show()
+        fig, ax = plt.subplots(1, 1, figsize=(7, 5))
+        ax.plot(fpr, tpr)
+        ax.set_xlabel("FPR")
+        ax.set_ylabel("TPR")
+        ax.set_title("ROC: " + str(auc))
+        fname = f"{dir_to_save}/roc_{idd}"
+        fig.savefig(fname)
+        
+    np.save(f"{dir_to_save}/fpr_{idd}", fpr)
+    np.save(f"{dir_to_save}/tpr_{idd}", tpr)
         
     if auc < 0.5:
         auc = 1.0 - auc
@@ -325,7 +344,7 @@ def analyze_band_transform(band, transformed_sim_samples, dat_samples, n_feature
     return auc
 
 
-def analyze_band_transforms_CURTAILS_old(band, idd, transformed_sim_samples, dat_samples, classif_dir, n_epochs, batch_size, lr, visualize = False):
+def analyze_band_transforms_CURTAILS_old(band, idd, transformed_sim_samples, dat_samples, classif_dir, n_epochs, batch_size, lr, visualize = False, test_samp1 = False, test_samp2 = False):
     
     """adapted the CURTAINS old code so it's now band-wise"""
     
@@ -333,7 +352,7 @@ def analyze_band_transforms_CURTAILS_old(band, idd, transformed_sim_samples, dat
     os.makedirs(classifier_band_dir, exist_ok=True)
     print("On band", band, "testing", idd, "...")
     
-    scores_df = oldCC.assign_scores(transformed_sim_samples, dat_samples, classifier_band_dir, n_epochs=n_epochs, batch_size=batch_size, lr=lr, visualize = visualize)
+    scores_df = oldCC.assign_scores(transformed_sim_samples, dat_samples, classifier_band_dir, n_epochs=n_epochs, batch_size=batch_size, lr=lr, visualize = visualize, test_samp1 = test_samp1, test_samp2 = test_samp2)
     
     auc, fpr, tpr = oldCC.get_classification(scores_df)
     

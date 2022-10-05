@@ -299,36 +299,30 @@ def kfold_gen(scikit_generator, X, y):
         indicies = np.roll(indicies, 1, 0)
 
 
-def assign_scores(true_samples, template_samples, results_dir, nfolds=5, use_weights=True, n_epochs=20, batch_size=128,
+def assign_scores(train_samp1, train_samp2, results_dir, nfolds=5, use_weights=True, n_epochs=20, batch_size=128,
                   wd=None, lr=0.001, use_scheduler=True, batch_norm=False, layer_norm=False, width=32, depth=3, drp=0.0,
-                  cf_activ='relu', event_id=None, truth_bkg=None, visualize = False):
+                  cf_activ='relu', visualize = False, test_samp1 = False, test_samp2 = False):
     
-    X = np.vstack((template_samples[:, :-1], true_samples[:, :-1]))
-    masses = np.vstack((template_samples[:, -1:], true_samples[:, -1:]))
+    X = np.vstack((train_samp1[:, :-1], train_samp2[:, :-1]))
+    masses = np.vstack((train_samp1[:, -1:], train_samp2[:, -1:]))
+    
     print("shape without masses:", X.shape)
-    n_templates = len(template_samples)
-    y = torch.cat((torch.zeros(n_templates),
-                   torch.ones(len(true_samples))), 0).view(-1, 1).cpu().numpy()
-    if event_id is None:
-        event_id = -torch.ones(len(true_samples))
-    if truth_bkg is None:
-        truth_bkg = -torch.ones(len(true_samples))
-    event_id = torch.cat((-torch.ones(n_templates).to(event_id),
-                          event_id)).view(-1, 1).cpu().numpy()
-    truth_bkg = torch.cat((-torch.ones(n_templates).to(truth_bkg),
-                           truth_bkg)).view(-1, 1).cpu().numpy()
-
+    y = torch.cat((torch.zeros(len(train_samp1)),
+                   torch.ones(len(train_samp2))), 0).view(-1, 1).cpu().numpy()
+  
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     kfold = StratifiedKFold(n_splits=nfolds, shuffle=True, random_state=1)
-    split_inds = kfold_gen(kfold, X, y)
+    inds = kfold.split(X, y)
+    test_data_dict = {} # store the val data to use as test data if not using the STS
 
     # Train the models
     losses = []
-    for fold, (train_index, valid_index, _) in enumerate(split_inds):
+    fold = 0
+    for train_index, val_index in inds:
         # Split the data and preprocess
         X_train, y_train = X[train_index], y[train_index]
-        X_val, y_val = X[valid_index], y[valid_index]
+        X_val, y_val = X[val_index], y[val_index]
         preprocessor = StandardScaler()
         preprocessor.fit(X_train)
         scaler_name = f"{results_dir}/classifier_scaler_{fold}.pkl"
@@ -337,6 +331,7 @@ def assign_scores(true_samples, template_samples, results_dir, nfolds=5, use_wei
         # Make the datasets
         train_data = SupervisedDataset(X_train, y_train, preprocessor=preprocessor, weights=use_weights)
         valid_data = SupervisedDataset(X_val, y_val, preprocessor=preprocessor, weights=use_weights)
+        test_data_dict[fold] = X_val, y_val, preprocessor
 
         # Define a classifier object
         net = dense_net(X.shape[1], 1, layers=[width] * depth, batch_norm=batch_norm, layer_norm=layer_norm,
@@ -352,30 +347,45 @@ def assign_scores(true_samples, template_samples, results_dir, nfolds=5, use_wei
             fit_classifier(classifier, train_data, valid_data, optimizer, batch_size, n_epochs, device, results_dir,
                            fold=fold, scheduler=scheduler, visualize = visualize)
         ]
+        fold += 1
 
     # TODO pick the epoch to take
     epoch_to_load = n_epochs - 1
 
     # Load and evaluate the models
     preds = []
-    split_inds = kfold_gen(kfold, X, y)
-    for fold, (_, _, eval_index) in enumerate(split_inds):
-        X_eval, y_eval = X[eval_index], y[eval_index]
-        id_eval, bkg_truth_eval = event_id[eval_index], truth_bkg[eval_index]
-        eval_masses = masses[eval_index]
-        scaler_name = f"{results_dir}/classifier_scaler_{fold}.pkl"
-        preprocessor = load(open(scaler_name, 'rb'))
-        eval_data = SupervisedDataset(X_eval, y_eval, preprocessor=preprocessor, weights=use_weights)
+    
+    # if we have test data, load it in
+    # else, use the val data
+    if test_samp1 and test_samp2:
+        print("Testing on STS...")
+        X_test = np.vstack((test_samp1[:, :-1], test_samp2[:, :-1]))
+        y_test = torch.cat((torch.zeros(len(test_samp1)),
+                   torch.ones(len(test_samp1))), 0).view(-1, 1).cpu().numpy()
+        preprocessor = StandardScaler()
+        preprocessor.fit(X_test)
+        # Make the datasets
+        test_data = X_test, y_test, preprocessor
+        test_data_dict = {i:test_data for i in range(nfolds)}
+        
+    else:
+        print("Using the val data for testing...")
+
+    for fold in range(nfolds):
         classifier_dir = Path(results_dir, f'classifier_{fold}')
         classifier.load(classifier_dir / f'{epoch_to_load}')
-        with torch.no_grad():
-            predictions = classifier.predict(eval_data.X.to(device)).cpu().numpy()
         
-        features = [f"feat_{i}" for i in range(X_eval.shape[-1])]
+        X_t, y_t, pp = test_data_dict[fold]  
+        test_data = SupervisedDataset(X_t, y_t, preprocessor=pp, weights=use_weights)
+        
+        with torch.no_grad():
+            predictions = classifier.predict(test_data.X.to(device)).cpu().numpy()
+        
+        features = [f"feat_{i}" for i in range(X.shape[-1])]
         
         preds += [pd.DataFrame(
-            np.concatenate((id_eval, eval_masses, preprocessor.inverse_transform(eval_data.X), y_eval, bkg_truth_eval, predictions), 1),
-            columns=['EventID', 'mass']+features+['SoTLabel', 'istrueQCD', 'predictions']
+            np.concatenate((preprocessor.inverse_transform(test_data.X), y_t, predictions), 1),
+            columns= features+['SoTLabel', 'predictions']
         )]
         # sot = sample or true
         preds[-1]['fold'] = fold

@@ -179,7 +179,7 @@ def make_base_density_samples(hyperparameters_dict_BD, keyword, flow_training_di
         param.requires_grad = False
     flow_BD.eval()
 
-    SB_sim_samples, SB_BD_samples = make_BD_samples_dict(bands_dict, n_features, dataset_sim, flow_BD, device)
+    SB_sim_samples, SB_BD_samples = make_BD_samples_dict(["sb1", "sb2"], bands_dict, n_features, dataset_sim, flow_BD, device)
     
     # Plot the samples
     make_sim_BD_sample_plots(flow_training_dir, SB_sim_samples, SB_BD_samples, binning_scheme, keyword[2:])
@@ -189,7 +189,7 @@ def make_base_density_samples(hyperparameters_dict_BD, keyword, flow_training_di
     np.save(os.path.join(flow_samples_dir, f"BD_SB.npy"), SB_BD_samples)
 
 
-def evaluate_base_density(flow_samples_dir, hyperparameters_dict_BD, keyword, flow_training_dir, device, bands_dict, n_features, hyperparameters_dict_eval, use_old_CC = False):
+def evaluate_base_density(flow_samples_dir, hyperparameters_dict_BD, keyword, flow_training_dir, device, bands_dict, n_features, hyperparameters_dict_eval):
     
     print("Evaluating base density ...")
     print()
@@ -215,16 +215,14 @@ def evaluate_base_density(flow_samples_dir, hyperparameters_dict_BD, keyword, fl
     BD_BD_rocs = []
        
 
- # sim - BD
-   
-    roc = analyze_band_transforms_CURTAILS_old("SB1 + SB2", "real_v_BD", SB_sim_samples, SB_BD_samples, classifs_results_dir, epochs_NN, batch_size_NN, lr_NN)
+     # sim - BD
+    roc = analyze_band_transform(flow_samples_dir, "SB_sim_v_BD", SB_sim_samples, SB_BD_samples, None, None, n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device)
     sim_BD_rocs.append(roc)
-
    
-    roc = analyze_band_transforms_CURTAILS_old("SB1 + SB2", "real_v_real", SB_sim_samples, SB_sim_samples, classifs_results_dir, epochs_NN, batch_size_NN, lr_NN)
+    roc = analyze_band_transform(flow_samples_dir, "SB_sim_v_sim", SB_sim_samples, SB_sim_samples, None, None, n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device)
     sim_sim_rocs.append(roc)
 
-    roc = analyze_band_transforms_CURTAILS_old("SB1 + SB2", "BD_v_BD", SB_BD_samples, SB_BD_samples, classifs_results_dir, epochs_NN, batch_size_NN, lr_NN)
+    roc = analyze_band_transform(flow_samples_dir, "SB_BD_v_BD", SB_BD_samples, SB_BD_samples, None, None, n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device)
     BD_BD_rocs.append(roc)
 
 
@@ -330,12 +328,12 @@ def make_s2d_samples(bands_to_sample, hyperparameters_dict_BD_sim, hyperparamete
     
     
 
-def evaluate_s2d(bands_to_sample, s2d_samples_dir, s2d_dir, hyperparameters_dict_eval, device, bands_dict, n_features, use_old_CC = False):
+def evaluate_s2d(bands_to_sample, s2d_samples_dir, s2d_dir, hyperparameters_dict_eval, device, bands_dict, n_features):
     
     epochs_NN = hyperparameters_dict_eval["n_epochs"]
     batch_size_NN = hyperparameters_dict_eval["batch_size"]
     lr_NN = hyperparameters_dict_eval["lr"]
-    #patience_NN = hyperparameters_dict_eval["patience"]
+    patience_NN = hyperparameters_dict_eval["patience"]
     
     if use_old_CC:
         classifs_results_dir = os.path.join(s2d_dir, "oldCC_results/")
@@ -371,17 +369,19 @@ def evaluate_s2d(bands_to_sample, s2d_samples_dir, s2d_dir, hyperparameters_dict
     BD_band_rocs = []
     
     for band in bands_to_sample:
-
-        roc = analyze_band_transforms_CURTAILS_old(band, "transSIM_v_DAT", transformed_sim_samples[band], dat_samples[band], classifs_results_dir, epochs_NN, batch_size_NN, lr_NN)
+        
+        roc = analyze_band_transform(s2d_samples_dir, f"{band}_transSIM_v_DAT", transformed_sim_samples[band], dat_samples[band], None, None, n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device)
         band_rocs[band].append(roc)
 
-        roc = analyze_band_transforms_CURTAILS_old(band, "SIM_v_DAT", sim_samples[band], dat_samples[band], classifs_results_dir, epochs_NN, batch_size_NN, lr_NN)
-        untransfomed_band_rocs[band].append(roc) 
+        roc = analyze_band_transform(s2d_samples_dir, f"{band}_SIM_v_DAT", sim_samples[band], dat_samples[band], None, None, n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device)
+        untransfomed_band_rocs[band].append(roc)
+    
+    roc = analyze_band_transform(s2d_samples_dir, "SB_transBD_v_DAT", SB_trans_BD_samples, SB_dat_samples, None, None, n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device)
+    BD_band_rocs[band].append(roc)
 
-        if band == "sb1": # only once do we need to test the transBD vs DAT
-            roc = analyze_band_transforms_CURTAILS_old("SB1 + SB2", "transBD_v_DAT", SB_trans_BD_samples, SB_dat_samples, classifs_results_dir, epochs_NN, batch_size_NN, lr_NN)
-            BD_band_rocs.append(roc)
-
+    
+    
+   
     print()
             
     results_file = f"SIM_transSIM_DAT_results_{str(bands_to_sample)}.txt"
@@ -400,3 +400,4 @@ def evaluate_s2d(bands_to_sample, s2d_samples_dir, s2d_dir, hyperparameters_dict
 
     
 
+    
