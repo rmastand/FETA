@@ -48,15 +48,13 @@ def main(message):
     """
     """
 
-    hyperparameters_dict_eval = {"n_epochs": 20,
+    hyperparameters_dict_eval = {"n_epochs": 100,
                               "batch_size": 128,
                               "lr": 0.001,
                               "num_bootstrap": 1,
-                               "patience": 10
+                               "patience": 20
                                 }
     
-    use_old_CC = True
-
 
     # directories
 
@@ -69,20 +67,20 @@ def main(message):
 
     exp_dir = os.path.join(curtains_dir, dataset_config_string)
     data_dir = os.path.join(exp_dir, "data")
-    STS_dir = os.path.join(curtains_dir, STS_config_sting, "data")
 
     print("Making results directory at", exp_dir, "...")
     os.makedirs(exp_dir, exist_ok=True)
 
    
     # dataset generation parameters
-    context_endpoints = (3000, 4000)
+    context_endpoints = (2500, 4500)
 
-    bands_dict = {"ob1": [3000, 3200],
-                  "sb1": [3200, 3400],
-                  "sr" : [3400, 3600],
-                  "sb2": [3600, 3800],
-                  "ob2": [3800, 4000]}
+
+    bands_dict = {"ob1": [2500, 2900],
+                  "sb1": [2900, 3300],
+                  "sr" : [3300, 3700],
+                  "sb2": [3700, 4100],
+                  "ob2": [4100, 4500]}
 
     binning_scheme = np.linspace(-3.5, 3.5, 50)
 
@@ -103,7 +101,6 @@ def main(message):
     print("Num SIM events in SB:", len(npull_dataset_train_sim)+len(npull_dataset_val_sim))
     print("Num DAT events in SB:", len(npull_dataset_train_dat)+len(npull_dataset_val_dat))
     print()
-
 
     # Preprocess the data
     print("Preproccessing data...")
@@ -148,11 +145,11 @@ def main(message):
     base_dist_sim = StandardNormal(shape=[n_features])
 
     # Create and train
-    #create_and_train_flow("BDSIM", BD_sim_training_dir, transforms_BD_sim, base_dist_sim, hyperparameters_dict_BD_sim, device, dataset_train_sim, dataset_val_sim, early_stop = True, seed = seed)
+    create_and_train_flow("BDSIM", BD_sim_training_dir, transforms_BD_sim, base_dist_sim, hyperparameters_dict_BD_sim, device, dataset_train_sim, dataset_val_sim, early_stop = False, seed = seed)
 
-    #make_base_density_samples(hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, BD_sim_samples_dir, device, bands_dict, n_features, npull_dataset_val_sim, binning_scheme)
+    make_base_density_samples(hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, BD_sim_samples_dir, device, bands_dict, n_features, npull_dataset_val_sim, binning_scheme)
 
-    #evaluate_base_density(BD_sim_samples_dir, hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, device, bands_dict, n_features, hyperparameters_dict_eval, use_old_CC = use_old_CC)
+    evaluate_base_density(BD_sim_samples_dir, hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, device, bands_dict, n_features, hyperparameters_dict_eval)
 
 
     """
@@ -191,7 +188,7 @@ def main(message):
     flow_BD.eval()
 
     # Create and train
-    #create_and_train_flow("TRANS", s2d_training_dir, transforms_s2d, flow_BD, hyperparameters_dict_s2d, device, dataset_train_dat, dataset_val_dat, early_stop = True, seed = seed)
+    create_and_train_flow("TRANS", s2d_training_dir, transforms_s2d, flow_BD, hyperparameters_dict_s2d, device, dataset_train_dat, dataset_val_dat, early_stop = False, seed = seed)
 
 
     """
@@ -203,10 +200,10 @@ def main(message):
     """
     
     
-    #make_s2d_samples(["sb1", "sb2"], hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, BD_sim_training_dir, s2d_training_dir, s2d_training_dir, device, bands_dict, n_features, npull_dataset_val_sim, npull_dataset_val_dat, binning_scheme, direct = False)
+    make_s2d_samples(["sb1", "sb2"], hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, BD_sim_training_dir, s2d_training_dir, s2d_training_dir, device, bands_dict, n_features, npull_dataset_val_sim, npull_dataset_val_dat, binning_scheme, direct = False)
     
     
-    evaluate_s2d(["sb1", "sb2"], s2d_samples_dir, s2d_training_dir, hyperparameters_dict_eval, device, bands_dict, n_features, use_old_CC = use_old_CC)
+    evaluate_s2d(["sb1", "sb2"], s2d_samples_dir, s2d_training_dir, hyperparameters_dict_eval, device, bands_dict, n_features)
     
     """
     "
@@ -220,13 +217,10 @@ def main(message):
     
     classif_train_sim = ToyDataset(data_dir, "classif_train_sim.npy")
     classif_train_dat = ToyDataset(data_dir, "classif_train_dat.npy")
-
-
-    #make_s2d_samples(["sr"], hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, BD_sim_training_dir, s2d_training_dir, s2d_training_dir, device, bands_dict, n_features, classif_train_sim, classif_train_dat, binning_scheme, direct = False)
     
-    #evaluate_s2d(["sr"], s2d_samples_dir, s2d_training_dir, hyperparameters_dict_eval, device, bands_dict, n_features, use_old_CC = use_old_CC)
- 
- 
+    make_s2d_samples(["sr"], hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, BD_sim_training_dir, s2d_training_dir, s2d_training_dir, device, bands_dict, n_features, classif_train_sim, classif_train_dat, binning_scheme, direct = False)
+    
+
     
     
     return(message)
