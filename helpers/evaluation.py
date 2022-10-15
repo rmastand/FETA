@@ -13,9 +13,14 @@ from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score, roc_curve
 
+from sklearn.utils import class_weight
+from sklearn.preprocessing import MinMaxScaler
+
+
 from tqdm import tqdm
 
 from helpers.training import *
+from helpers.datasets import *
 import helpers.CURTAINS_classifier as oldCC
 from helpers.utils import EarlyStopping
 
@@ -28,8 +33,8 @@ def transform_sim_to_dat_2step(flow, data_input, device):
     make sure the data is preprocessed!!!
     """
     
-    feat = data_input[:,:-1].float().to(device)
-    cont = torch.reshape(data_input[:,-1], (-1, 1)).float().to(device)
+    feat = torch.from_numpy(data_input[:,:-1]).float().to(device)
+    cont = torch.from_numpy(np.reshape(data_input[:,-1], (-1, 1))).float().to(device)
 
     with torch.no_grad():
         outputs, logabsdet = flow._transform.inverse(feat, context=flow._embedding_net(cont))
@@ -54,7 +59,7 @@ def transform_sim_to_dat_direct(flow_SIM, flow_DAT, sim_input, device):
     return outputs_dat_target.detach().cpu().numpy()
 
 
-def make_BD_samples_dict(bands_to_sample, bands_dict, n_features, dataset_sim, bd_flow, device):
+def make_BD_samples_dict(bands_to_sample, bands_dict, n_features, dataset_sim, col_minmax, bd_flow, device, oversample = 1):
     """
     returns 2 arrays
     sim_samples: SB1 + SB2 samples from SIM data (what was used to train the base density)
@@ -62,28 +67,36 @@ def make_BD_samples_dict(bands_to_sample, bands_dict, n_features, dataset_sim, b
     
     """
     
+    print(f"Oversampling: {oversample}")
+    
     bands_edges = [bands_dict[band] for band in bands_to_sample]
     
     # create the sim_samples
     sim_samples = dataset_sim.pull_from_mass_range(bands_edges)
-    sim_samples.minmaxscale()
+    sim_samples = minmaxscale(sim_samples.data, col_minmax, lower = -3, upper = 3, forward = True)
 
     # extract the (preprocessd) mass
-    context_masses = torch.reshape(sim_samples[:,-1], (-1, 1)).float().to(device)
+    context_masses = torch.from_numpy(np.reshape(sim_samples[:,-1], (-1, 1))).float().to(device)
     
     # sample from the base density
     BD_samples = bd_flow.sample(1, context=context_masses).detach().cpu().numpy()
     BD_samples = BD_samples.reshape(BD_samples.shape[0], n_features)
-    
     BD_samples = np.hstack((BD_samples, np.reshape(sim_samples[:,-1], (-1, 1))))
     
-
+    if oversample > 1:
+        for i in range(oversample - 1):
+            new_BD_samples = bd_flow.sample(1, context=context_masses).detach().cpu().numpy()
+            new_BD_samples = new_BD_samples.reshape(new_BD_samples.shape[0], n_features)
+            new_BD_samples = np.hstack((new_BD_samples, np.reshape(sim_samples[:,-1], (-1, 1))))
+            
+            BD_samples = np.vstack((BD_samples, new_BD_samples))
+       
     
-    return sim_samples.data, BD_samples
+    return sim_samples, BD_samples
 
 
 
-def make_trans_samples_dict_2step(bands_to_transform, bands_dict, dataset_sim, dataset_dat, transform_flow, device):
+def make_trans_samples_dict_2step(bands_to_transform, bands_dict, dataset_sim, dataset_dat, col_minmax, transform_flow, device):
     
     """
     Creates 3 dicts sim_samples, transformed_sim_samples, dat_samples
@@ -101,19 +114,19 @@ def make_trans_samples_dict_2step(bands_to_transform, bands_dict, dataset_sim, d
 
         # get the sim sample
         eval_dataset_sim = dataset_sim.pull_from_mass_range([bands_dict[band]])
-        eval_dataset_sim.minmaxscale()
+        eval_dataset_sim = minmaxscale(eval_dataset_sim.data, col_minmax, lower = -3, upper = 3, forward = True)
 
         # get the dat sample
         eval_dataset_dat = dataset_dat.pull_from_mass_range([bands_dict[band]])
-        eval_dataset_dat.minmaxscale()
+        eval_dataset_dat = minmaxscale(eval_dataset_dat.data, col_minmax, lower = -3, upper = 3, forward = True)
 
         # transform the sim sample to dat 
         transformed_features_sim = transform_sim_to_dat_2step(transform_flow, eval_dataset_sim, device)
         
         # save to dicts       
-        sim_samples[band] = eval_dataset_sim.data
-        transformed_sim_samples[band] = np.hstack((transformed_features_sim, np.reshape(eval_dataset_sim.data[:,-1], (-1, 1))))
-        dat_samples[band] = eval_dataset_dat.data
+        sim_samples[band] = eval_dataset_sim
+        transformed_sim_samples[band] = np.hstack((transformed_features_sim, np.reshape(eval_dataset_sim[:,-1], (-1, 1))))
+        dat_samples[band] = eval_dataset_dat
         
     return sim_samples, transformed_sim_samples, dat_samples
 
@@ -192,15 +205,15 @@ class NeuralNet(nn.Module):
         return output
     
     
-def analyze_band_transform(dir_to_save, idd, train_samp_1, train_samp_2, test_samp_1, test_samp_2, n_features, n_epochs, batch_size, lr, patience, device, update_epochs = 1, early_stop = True, visualize = True):
+def analyze_band_transform(dir_to_save, idd, train_samp_1, train_samp_2, test_samp_1, test_samp_2, n_features, n_epochs, batch_size, lr, patience, device, update_epochs = 1, early_stop = True, visualize = True, seed = None):
     
-    #torch.manual_seed(8)
-    #np.random.seed(8)
-    
-    print(f"Testing on {n_features} features...")
-
+    if seed is not None:
+        #print(f"Using seed {seed}...")
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+            
     dense_net = NeuralNet(input_shape = n_features)
-    criterion = nn.BCELoss()
+    criterion = F.binary_cross_entropy #nn.BCELoss()
     optimizer = torch.optim.Adam(dense_net.parameters(), lr=lr)
 
     dense_net.to(device)
@@ -213,6 +226,14 @@ def analyze_band_transform(dir_to_save, idd, train_samp_1, train_samp_2, test_sa
     nn_train_data = np.concatenate((train_samp_1, train_samp_2))
     nn_train_labs = np.concatenate((torch.zeros((train_samp_1.shape[0], 1)), torch.ones((train_samp_2.shape[0],1))))
     
+
+
+    # get weights in case we're oversampling
+    class_weights = class_weight.compute_class_weight('balanced', np.unique(nn_train_labs.reshape(-1)), nn_train_labs.reshape(-1))
+    class_weights = dict(enumerate(class_weights))
+    print(class_weights)
+        
+    
     # train-test split
     val_size = 0.2
     
@@ -220,26 +241,33 @@ def analyze_band_transform(dir_to_save, idd, train_samp_1, train_samp_2, test_sa
     X_train, X_val, y_train, y_val = train_test_split(nn_train_data, nn_train_labs, test_size=val_size)
     
     # if no test data provided, use the val data
-    if (test_samp_1 == None) or (test_samp_2 == None):
+    if (test_samp_1 is None) or (test_samp_2 is None):
         print("Using val data as test data...")
         X_test = X_val
-        y_test = t_val
+        y_test = y_val
     else:
         nn_test_data = np.concatenate((test_samp_1, test_samp_2))
         nn_test_labs = np.concatenate((torch.zeros((test_samp_1.shape[0], 1)), torch.ones((test_samp_2.shape[0],1))))
         # shuffle the data
         nn_train_data, nn_train_labs = shuffle(nn_train_data, nn_train_labs)
-        X_test, Y_test = shuffle(nn_test_data, nn_test_labs)
+        X_test, y_test = shuffle(nn_test_data, nn_test_labs)
     
     
     print("Train data, labels shape:", X_train.shape, y_train.shape)
     print("Val data, labels shape:", X_val.shape, y_val.shape)
-    print("Test data, labels  shape:", X_test.shape, Y_test.shape)
-    for i in range(X_train.shape[1]):
-        print(f"Feature {i} min, max for train: ({np.min(X_train[:,i])},{np.max(X_train[:,i])}), val: ({np.min(X_val[:,i])},{np.max(X_val[:,i])}), test: ({np.min(X_test[:,i])},{np.max(X_test[:,i])})")
-    print()
-    print()
+    print("Test data, labels  shape:", X_test.shape, y_test.shape)
+   
+    # apply preprocessing
+    #scaler = MinMaxScaler()
+    #scaler.fit(X_train)
+    #X_train = scaler.transform(X_train)
+    #X_val = scaler.transform(X_val)
+    #X_test = scaler.transform(X_test)
     
+    for i in range(X_train.shape[1]):
+        print(f"Feature {i} min, max for train: ({np.min(X_train[:,i])},{np.max(X_train[:,i])}), val: ({np.min(X_val[:,i])},{np.max(X_val[:,i])}), test: ({np.min(X_test[:,i])},{np.max(X_test[:,i])})")  
+        
+
 
     # send to device
     X_train = np_to_torch(X_train, device)
@@ -263,13 +291,17 @@ def analyze_band_transform(dir_to_save, idd, train_samp_1, train_samp_2, test_sa
             # calculate the loss, backpropagate
             optimizer.zero_grad()
             
-            try:
-                loss = criterion(dense_net(X_train[indices]), y_train[indices])
-            except(RuntimeError):
-                for pp in range(len(X_train[indices])):
-                    print(X_train[indices][pp], dense_net(X_train[indices])[pp]  )             
-                
-                exit()
+            batch_data = X_train[indices]
+            batch_labels = y_train[indices]
+            
+            # get the weights
+            batch_weights = (torch.ones(batch_labels.shape, device=device)
+                        - batch_labels)*class_weights[0] \
+                        + batch_labels*class_weights[1]
+
+            
+            loss = criterion(dense_net(batch_data), batch_labels, weight = batch_weights)
+            
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
@@ -291,7 +323,17 @@ def analyze_band_transform(dir_to_save, idd, train_samp_1, train_samp_2, test_sa
                 for i, indices in enumerate( val_indices_list ): # going through the batches
                     # calculate the loss, backpropagate
                     optimizer.zero_grad()
-                    val_loss = criterion(dense_net(X_val[indices]), y_val[indices])
+                    
+                    batch_data = X_val[indices]
+                    batch_labels = y_val[indices]
+
+                    # get the weights
+                    batch_weights = (torch.ones(batch_labels.shape, device=device)
+                                - batch_labels)*class_weights[0] \
+                                + batch_labels*class_weights[1]
+
+                    
+                    val_loss = criterion(dense_net(batch_data), batch_labels, weight = batch_weights) 
 
                     val_losses_batch_per_e.append(val_loss.detach().cpu().numpy())
 
@@ -323,8 +365,8 @@ def analyze_band_transform(dir_to_save, idd, train_samp_1, train_samp_2, test_sa
         predicted = np.round(outputs)
 
         # calculate auc 
-        auc = roc_auc_score(Y_test, outputs)
-        fpr, tpr, _ = roc_curve(Y_test, outputs)
+        auc = roc_auc_score(y_test, outputs)
+        fpr, tpr, _ = roc_curve(y_test, outputs)
 
     if visualize:
         fig, ax = plt.subplots(1, 1, figsize=(7, 5))

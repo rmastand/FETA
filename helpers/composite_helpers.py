@@ -157,7 +157,7 @@ def continue_to_train_flow(keyword, trained_flow_checkpoint_path, flow_training_
 
 
 
-def make_base_density_samples(hyperparameters_dict_BD, keyword, flow_training_dir, flow_samples_dir, device, bands_dict, n_features, dataset_sim, binning_scheme):
+def make_base_density_samples(hyperparameters_dict_BD, keyword, flow_training_dir, flow_samples_dir, device, bands_dict, n_features, dataset_sim, binning_scheme, col_minmax):
     
     # Assumes keyword starts with BD
     
@@ -179,7 +179,7 @@ def make_base_density_samples(hyperparameters_dict_BD, keyword, flow_training_di
         param.requires_grad = False
     flow_BD.eval()
 
-    SB_sim_samples, SB_BD_samples = make_BD_samples_dict(["sb1", "sb2"], bands_dict, n_features, dataset_sim, flow_BD, device)
+    SB_sim_samples, SB_BD_samples = make_BD_samples_dict(["sb1", "sb2"], bands_dict, n_features, dataset_sim, col_minmax, flow_BD, device)
     
     # Plot the samples
     make_sim_BD_sample_plots(flow_training_dir, SB_sim_samples, SB_BD_samples, binning_scheme, keyword[2:])
@@ -201,10 +201,6 @@ def evaluate_base_density(flow_samples_dir, hyperparameters_dict_BD, keyword, fl
     lr_NN = hyperparameters_dict_eval["lr"]
     patience_NN = hyperparameters_dict_eval["patience"]
     
-    if use_old_CC:
-        classifs_results_dir = os.path.join(flow_training_dir, "oldCC_results/")
-        os.makedirs(classifs_results_dir, exist_ok=True)
-    
     SB_sim_samples = np.load(os.path.join(flow_samples_dir, f"SIM_SB.npy"))
     SB_BD_samples = np.load(os.path.join(flow_samples_dir, f"BD_SB.npy"))
    
@@ -216,13 +212,13 @@ def evaluate_base_density(flow_samples_dir, hyperparameters_dict_BD, keyword, fl
        
 
      # sim - BD
-    roc = analyze_band_transform(flow_samples_dir, "SB_sim_v_BD", SB_sim_samples, SB_BD_samples, None, None, n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device)
+    roc = analyze_band_transform(flow_samples_dir, "SB_sim_v_BD", SB_sim_samples[:,:-1], SB_BD_samples[:,:-1], None, None, n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device)
     sim_BD_rocs.append(roc)
    
-    roc = analyze_band_transform(flow_samples_dir, "SB_sim_v_sim", SB_sim_samples, SB_sim_samples, None, None, n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device)
+    roc = analyze_band_transform(flow_samples_dir, "SB_sim_v_sim", SB_sim_samples[:,:-1], SB_sim_samples[:,:-1], None, None, n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device)
     sim_sim_rocs.append(roc)
 
-    roc = analyze_band_transform(flow_samples_dir, "SB_BD_v_BD", SB_BD_samples, SB_BD_samples, None, None, n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device)
+    roc = analyze_band_transform(flow_samples_dir, "SB_BD_v_BD", SB_BD_samples[:,:-1], SB_BD_samples[:,:-1], None, None, n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device)
     BD_BD_rocs.append(roc)
 
 
@@ -239,7 +235,7 @@ def evaluate_base_density(flow_samples_dir, hyperparameters_dict_BD, keyword, fl
 
         
 
-def make_s2d_samples(bands_to_sample, hyperparameters_dict_BD_sim, hyperparameters_dict_dat_props, BD_sim_training_dir, dat_props_dir, s2d_dir, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, direct):
+def make_s2d_samples(bands_to_sample, hyperparameters_dict_BD_sim, hyperparameters_dict_dat_props, BD_sim_training_dir, dat_props_dir, s2d_dir, device, bands_dict, n_features, dataset_sim, dataset_dat, binning_scheme, col_minmax, direct, oversample = 1):
     
     """
     2_step process: set direct = False
@@ -285,7 +281,7 @@ def make_s2d_samples(bands_to_sample, hyperparameters_dict_BD_sim, hyperparamete
     
     # Apply the flow to data
     if not direct:
-        sim_samples, transformed_sim_samples, dat_samples = make_trans_samples_dict_2step(bands_to_sample, bands_dict, dataset_sim, dataset_dat, flow_dat_props, device)
+        sim_samples, transformed_sim_samples, dat_samples = make_trans_samples_dict_2step(bands_to_sample, bands_dict, dataset_sim, dataset_dat, col_minmax, flow_dat_props, device)
     else:
         sim_samples, transformed_sim_samples, dat_samples = make_trans_samples_dict_direct(bands_to_sample, bands_dict, dataset_sim, dataset_dat, flow_BD_sim, flow_dat_props, device)
         
@@ -294,17 +290,16 @@ def make_s2d_samples(bands_to_sample, hyperparameters_dict_BD_sim, hyperparamete
     make_SIM_transDAT_plots(s2d_dir, sim_samples, transformed_sim_samples, dat_samples, binning_scheme, bands_to_sample)
     
     # Apply the flow to BD
-    SB_sim_samples, SB_BD_samples = make_BD_samples_dict(bands_to_sample, bands_dict, n_features, dataset_sim, flow_BD_sim, device)
+    SB_sim_samples, SB_BD_samples = make_BD_samples_dict(bands_to_sample, bands_dict, n_features, dataset_sim, col_minmax, flow_BD_sim, device, oversample)
     if not direct:
-        SB_trans_BD_samples = transform_sim_to_dat_2step(flow_dat_props, torch.tensor(SB_BD_samples), device)
+        SB_trans_BD_samples = transform_sim_to_dat_2step(flow_dat_props, SB_BD_samples, device)
     else:
         SB_trans_BD_samples = transform_sim_to_dat_direct(flow_BD_sim, flow_dat_props, torch.tensor(SB_BD_samples), device)
     SB_trans_BD_samples = np.hstack((SB_trans_BD_samples, np.reshape(SB_BD_samples[:,-1], (-1, 1))))
 
     bands_edges = [bands_dict[band] for band in bands_to_sample]
     SB_dat_samples = dataset_dat.pull_from_mass_range(bands_edges)
-    SB_dat_samples.minmaxscale()
-    SB_dat_samples = SB_dat_samples.data
+    SB_dat_samples = minmaxscale(SB_dat_samples.data, col_minmax, lower = -3, upper = 3, forward = True)
     make_BD_transBD_plots(s2d_dir, SB_BD_samples, SB_trans_BD_samples, SB_dat_samples, binning_scheme, str(bands_to_sample))
     
     # save the npy samples out
@@ -334,11 +329,7 @@ def evaluate_s2d(bands_to_sample, s2d_samples_dir, s2d_dir, hyperparameters_dict
     batch_size_NN = hyperparameters_dict_eval["batch_size"]
     lr_NN = hyperparameters_dict_eval["lr"]
     patience_NN = hyperparameters_dict_eval["patience"]
-    
-    if use_old_CC:
-        classifs_results_dir = os.path.join(s2d_dir, "oldCC_results/")
-        os.makedirs(classifs_results_dir, exist_ok=True)
-    
+
     # Load in npy samples
     sim_samples = {}
     transformed_sim_samples = {}
@@ -352,10 +343,7 @@ def evaluate_s2d(bands_to_sample, s2d_samples_dir, s2d_dir, hyperparameters_dict
         transformed_sim_samples[band] = np.load(os.path.join(s2d_samples_dir, f"{band}_transSIM.npy"))
         # dat
         dat_samples[band] = np.load(os.path.join(s2d_samples_dir, f"{band}_DAT.npy")) 
-                
-    # BD
-    SB_BD_samples = np.load(os.path.join(s2d_samples_dir, f"BD.npy"))
-    
+
     # transBD
     SB_trans_BD_samples = np.load(os.path.join(s2d_samples_dir, f"transBD.npy"))
     
@@ -370,14 +358,14 @@ def evaluate_s2d(bands_to_sample, s2d_samples_dir, s2d_dir, hyperparameters_dict
     
     for band in bands_to_sample:
         
-        roc = analyze_band_transform(s2d_samples_dir, f"{band}_transSIM_v_DAT", transformed_sim_samples[band], dat_samples[band], None, None, n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device)
+        roc = analyze_band_transform(s2d_samples_dir, f"{band}_transSIM_v_DAT", transformed_sim_samples[band][:,:-1], dat_samples[band][:,:-1], None, None, n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device)
         band_rocs[band].append(roc)
 
-        roc = analyze_band_transform(s2d_samples_dir, f"{band}_SIM_v_DAT", sim_samples[band], dat_samples[band], None, None, n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device)
+        roc = analyze_band_transform(s2d_samples_dir, f"{band}_SIM_v_DAT", sim_samples[band][:,:-1], dat_samples[band][:,:-1], None, None, n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device)
         untransfomed_band_rocs[band].append(roc)
     
-    roc = analyze_band_transform(s2d_samples_dir, "SB_transBD_v_DAT", SB_trans_BD_samples, SB_dat_samples, None, None, n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device)
-    BD_band_rocs[band].append(roc)
+    roc = analyze_band_transform(s2d_samples_dir, "SB_transBD_v_DAT", SB_trans_BD_samples[:,:-1], SB_dat_samples[:,:-1], None, None, n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device)
+    BD_band_rocs.append(roc)
 
     
     

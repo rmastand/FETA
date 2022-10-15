@@ -38,6 +38,8 @@ def main(message):
     print( "Using device: " + str( device ), flush=True)
 
     seed = 1
+    
+    oversample = 4
  
 
     """
@@ -51,7 +53,6 @@ def main(message):
     hyperparameters_dict_eval = {"n_epochs": 100,
                               "batch_size": 128,
                               "lr": 0.001,
-                              "num_bootstrap": 1,
                                "patience": 20
                                 }
     
@@ -61,7 +62,7 @@ def main(message):
     curtains_dir = "/global/home/users/rrmastandrea/CURTAINS_SALAD/"
 
     n_features = 5
-    num_signal_to_inject = 0
+    num_signal_to_inject = 1000
     dataset_config_string = f"LHCO_{num_signal_to_inject}sig_f/"
     STS_config_sting = f"LHCO_STS/"
 
@@ -70,6 +71,10 @@ def main(message):
 
     print("Making results directory at", exp_dir, "...")
     os.makedirs(exp_dir, exist_ok=True)
+    
+    # load in the reverse rescales
+    path_to_minmax = "/global/home/users/rrmastandrea/CURTAINS_SALAD/LHCO_STS/data/col_minmax.npy"
+    col_minmax = np.load(path_to_minmax)
 
    
     # dataset generation parameters
@@ -109,11 +114,12 @@ def main(message):
     dataset_val_sim = npull_dataset_val_sim.pull_from_mass_range([bands_dict["sb1"], bands_dict["sb2"]])
     dataset_train_dat = npull_dataset_train_dat.pull_from_mass_range([bands_dict["sb1"], bands_dict["sb2"]])
     dataset_val_dat = npull_dataset_val_dat.pull_from_mass_range([bands_dict["sb1"], bands_dict["sb2"]])
+    
+    dataset_train_sim = minmaxscale(dataset_train_sim.data, col_minmax, lower = -3, upper = 3, forward = True)
+    dataset_val_sim = minmaxscale(dataset_val_sim.data, col_minmax, lower = -3, upper = 3, forward = True)
+    dataset_train_dat = minmaxscale(dataset_train_dat.data, col_minmax, lower = -3, upper = 3, forward = True)
+    dataset_val_dat = minmaxscale(dataset_val_dat.data, col_minmax, lower = -3, upper = 3, forward = True)
 
-    dataset_train_sim.minmaxscale()
-    dataset_val_sim.minmaxscale()
-    dataset_train_dat.minmaxscale()
-    dataset_val_dat.minmaxscale()
 
     """
     "
@@ -145,11 +151,11 @@ def main(message):
     base_dist_sim = StandardNormal(shape=[n_features])
 
     # Create and train
-    create_and_train_flow("BDSIM", BD_sim_training_dir, transforms_BD_sim, base_dist_sim, hyperparameters_dict_BD_sim, device, dataset_train_sim, dataset_val_sim, early_stop = False, seed = seed)
+    #create_and_train_flow("BDSIM", BD_sim_training_dir, transforms_BD_sim, base_dist_sim, hyperparameters_dict_BD_sim, device, dataset_train_sim, dataset_val_sim, early_stop = False, seed = seed)
 
-    make_base_density_samples(hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, BD_sim_samples_dir, device, bands_dict, n_features, npull_dataset_val_sim, binning_scheme)
+    #make_base_density_samples(hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, BD_sim_samples_dir, device, bands_dict, n_features, npull_dataset_val_sim, binning_scheme, col_minmax)
 
-    evaluate_base_density(BD_sim_samples_dir, hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, device, bands_dict, n_features, hyperparameters_dict_eval)
+    #evaluate_base_density(BD_sim_samples_dir, hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, device, bands_dict, n_features, hyperparameters_dict_eval)
 
 
     """
@@ -188,7 +194,7 @@ def main(message):
     flow_BD.eval()
 
     # Create and train
-    create_and_train_flow("TRANS", s2d_training_dir, transforms_s2d, flow_BD, hyperparameters_dict_s2d, device, dataset_train_dat, dataset_val_dat, early_stop = False, seed = seed)
+    #create_and_train_flow("TRANS", s2d_training_dir, transforms_s2d, flow_BD, hyperparameters_dict_s2d, device, dataset_train_dat, dataset_val_dat, early_stop = False, seed = seed)
 
 
     """
@@ -200,10 +206,10 @@ def main(message):
     """
     
     
-    make_s2d_samples(["sb1", "sb2"], hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, BD_sim_training_dir, s2d_training_dir, s2d_training_dir, device, bands_dict, n_features, npull_dataset_val_sim, npull_dataset_val_dat, binning_scheme, direct = False)
+    #make_s2d_samples(["sb1", "sb2"], hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, BD_sim_training_dir, s2d_training_dir, s2d_training_dir, device, bands_dict, n_features, npull_dataset_val_sim, npull_dataset_val_dat, binning_scheme, col_minmax, direct = False)
     
     
-    evaluate_s2d(["sb1", "sb2"], s2d_samples_dir, s2d_training_dir, hyperparameters_dict_eval, device, bands_dict, n_features)
+    #evaluate_s2d(["sb1", "sb2"], s2d_samples_dir, s2d_training_dir, hyperparameters_dict_eval, device, bands_dict, n_features)
     
     """
     "
@@ -218,7 +224,7 @@ def main(message):
     classif_train_sim = ToyDataset(data_dir, "classif_train_sim.npy")
     classif_train_dat = ToyDataset(data_dir, "classif_train_dat.npy")
     
-    make_s2d_samples(["sr"], hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, BD_sim_training_dir, s2d_training_dir, s2d_training_dir, device, bands_dict, n_features, classif_train_sim, classif_train_dat, binning_scheme, direct = False)
+    make_s2d_samples(["sr"], hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, BD_sim_training_dir, s2d_training_dir, s2d_training_dir, device, bands_dict, n_features, classif_train_sim, classif_train_dat, binning_scheme, col_minmax, direct = False, oversample = oversample)
     
 
     

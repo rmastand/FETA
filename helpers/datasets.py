@@ -155,12 +155,10 @@ class BandedDataset(Dataset):
     """
     Instantiated from another dataset, just for training
     """
-    def __init__(self, data, n_features, col_rescales, col_minmax):
+    def __init__(self, data, n_features):
         
         self.data = data
         self.n_features = n_features
-        self.col_rescales = col_rescales
-        self.col_minmax = col_minmax
         self.preprocess = False
         
     
@@ -171,35 +169,6 @@ class BandedDataset(Dataset):
         item = self.data[idx]
         return torch.tensor(item)
     
-    def standardize(self):
-        
-        if not self.preprocess:
-            standardized_data = np.zeros(self.data.shape)
-            for col in range(self.data.shape[1]):
-                standardized_data[:, col] = (self.data[:, col] - self.col_rescales[col][0]) / self.col_rescales[col][1]
-            self.data = standardized_data
-            self.preprocess = True
-            
-        else:
-            print("Dataset already preprocessed")
-            
-    def minmaxscale(self, lower = -3.0, upper = 3.0):
-        
-        if not self.preprocess:
-            minmaxscaled_data = np.zeros(self.data.shape)
-            for col in range(self.data.shape[1]):
-               
-                
-                X_std = (self.data[:, col] - self.col_minmax[col][0]) / (self.col_minmax[col][1] - self.col_minmax[col][0])
-                minmaxscaled_data[:, col] = X_std * (upper - lower) + lower
-                        
-            self.data = minmaxscaled_data
-            self.preprocess = True
-
-            
-        else:
-            print("Dataset already preprocessed")
-            
 
         
 
@@ -213,8 +182,6 @@ class ToyDataset(Dataset):
         
         self.path_to_data = os.path.join(data_dir, data_id)
         self.data = np.load(self.path_to_data).astype(np.float32)
-        self.col_minmax = np.load(os.path.join(data_dir, "col_minmax.npy")).astype(np.float32)
-        self.col_rescales = np.load(os.path.join(data_dir, "col_rescales.npy")).astype(np.float32)
 
         self.n_features = self.data.shape[1] - 1 # 1 of the features is context (mass)
         self.preprocess = False
@@ -244,7 +211,7 @@ class ToyDataset(Dataset):
         selected_data = np.concatenate(selected_data)
         np.random.shuffle(selected_data)
 
-        return BandedDataset(selected_data, self.n_features, self.col_rescales, self.col_minmax)
+        return BandedDataset(selected_data, self.n_features)
 
 
 
@@ -255,4 +222,20 @@ def make_train_val_split(dataset, val_split):
     train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
     
     return train_dataset, val_dataset
+
+
+def minmaxscale(data, col_minmax, lower = -3.0, upper = 3.0, forward = True):
+    if forward:    
+        minmaxscaled_data = np.zeros(data.shape)
+        for col in range(data.shape[1]):
+            X_std = (data[:, col] - col_minmax[col][0]) / (col_minmax[col][1] - col_minmax[col][0])
+            minmaxscaled_data[:, col] = X_std * (upper - lower) + lower      
+        return minmaxscaled_data
+
+    else:  
+        reversescaled_data = np.zeros(data.shape)
+        for col in range(data.shape[1]):
+            X_std = (data[:, col] - lower) / (upper - lower)
+            reversescaled_data[:, col] = X_std * (col_minmax[col][1] - col_minmax[col][0]) + col_minmax[col][0]
+        return reversescaled_data
 
