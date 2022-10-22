@@ -23,7 +23,7 @@ COMPUTING PARAMETERS
 """
 """
 
-os.environ["CUDA_VISIBLE_DEVICES"]="3"
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 device = cuda.get_current_device()
 device.reset()
 
@@ -44,11 +44,12 @@ RUN PARAMETERS
 
 seed = 1
 n_features = 5
-num_signal_to_inject = 1000
+num_signal_to_inject = 0
+oversampnum = 5
 
-eval_sim2real = True
-eval_sim2real_oversamp = False
-eval_cathode = True
+eval_sim2real = False
+eval_sim2real_oversamp = True
+eval_cathode = False
 eval_curtains = False
 eval_full_sup = False
 
@@ -109,16 +110,23 @@ EVAL SIM2REAL
 
 sim2real_exp_dir = f"/global/home/users/rrmastandrea/CURTAINS_SALAD/LHCO_{num_signal_to_inject}sig_f/"
 
-num_layers_BD_sim = 8
-num_hidden_features_BD_sim = 64
+num_layers_BD_sim = 1
+num_hidden_features_BD_sim = 128
+num_blocks = 15
+
 num_layers_s2d = 2
 num_nodes_s2d = 16
 
-loc_id_BD_sim = f"BD_sim_Masked_PRQ_AR_{num_layers_BD_sim}layers_{num_hidden_features_BD_sim}hidden_{seed}seed"
+
+
+loc_id_BD_sim = f"BD_sim_Masked_PRQ_AR_{num_layers_BD_sim}layers_{num_hidden_features_BD_sim}hidden_{num_blocks}blocks_{seed}seed"
 loc_id_s2d = f"PRQ_Coupling_{num_layers_s2d}layers_{num_nodes_s2d}nodes_{seed}seed"
 BD_sim_training_dir = os.path.join(sim2real_exp_dir, f"saved_models_{loc_id_BD_sim}/")
 s2d_training_dir = os.path.join(BD_sim_training_dir, f"saved_models_{loc_id_s2d}/")
 s2d_samples_dir = os.path.join(s2d_training_dir, f"npy_samples/")
+
+oversamples_dir = os.path.join(s2d_training_dir, f"oversampling_{oversampnum}/")
+
 
 
 # load in the dat samples
@@ -133,7 +141,7 @@ cathode_exp_dir = f"/global/home/users/rrmastandrea/CATHODE/CATHODE_models/nsig_
 curtains_exp_dir = f"/global/home/users/rrmastandrea/curtains/images/NSF_CURT_{num_signal_to_inject}sig_seed{seed}/Transformer/evaluation/"
 
 
-for seed_NN in range(10):
+for seed_NN in range(0, 20, 1):
     
     print(f"On classifier seed {seed_NN}...")
 
@@ -161,11 +169,11 @@ for seed_NN in range(10):
 
         print("Evaluating sim2real oversampled...")
 
-        oversampled_sim_samples_train = np.load(os.path.join(s2d_samples_dir, f"transBD.npy"))
+        oversampled_sim_samples_train = np.load(os.path.join(oversamples_dir, f"transBD.npy"))
         oversampled_sim_samples_train = minmaxscale(oversampled_sim_samples_train, col_minmax, lower = -3, upper = 3, forward = False)
         oversampled_sim_samples_train = minmaxscale(oversampled_sim_samples_train, col_minmax, lower = 0, upper = 1, forward = True)
 
-        roc = analyze_band_transform(results_dir, f"sim2real_oversamp_{seed_NN}", oversampled_sim_samples_train[:,:-1], dat_samples_train[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
+        roc = analyze_band_transform(results_dir, f"sim2real_oversamp{oversampnum}_{seed_NN}", oversampled_sim_samples_train[:,:-1], dat_samples_train[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
         results_file = f"{results_dir}/sim2real_oversamp_{seed_NN}.txt"
 
         with open(results_file, "w") as results:
@@ -250,7 +258,7 @@ if eval_full_sup:
 
 
 
-    for seed_NN in range(10):
+    for seed_NN in range(10, 20, 1):
     
         print(f"On classifier seed {seed_NN}...")
 
