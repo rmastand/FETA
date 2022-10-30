@@ -23,7 +23,7 @@ COMPUTING PARAMETERS
 """
 """
 
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="3"
 device = cuda.get_current_device()
 device.reset()
 
@@ -45,12 +45,12 @@ RUN PARAMETERS
 seed = 1
 n_features = 5
 num_signal_to_inject = 0
-oversampnum = 5
+oversampnum = 6
 
 eval_sim2real = False
-eval_sim2real_oversamp = True
+eval_sim2real_oversamp = False
 eval_cathode = False
-eval_curtains = False
+eval_curtains = True
 eval_full_sup = False
 
 
@@ -139,6 +139,8 @@ cathode_exp_dir = f"/global/home/users/rrmastandrea/CATHODE/CATHODE_models/nsig_
 
 # curtains
 curtains_exp_dir = f"/global/home/users/rrmastandrea/curtains/images/NSF_CURT_{num_signal_to_inject}sig_seed{seed}/Transformer/evaluation/"
+
+#curtains_exp_dir = f"/global/home/users/rrmastandrea/curtains/images/NSF_CURT/Transformer/evaluation/"
 
 
 for seed_NN in range(0, 20, 1):
