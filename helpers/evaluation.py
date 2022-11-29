@@ -207,6 +207,12 @@ class NeuralNet(nn.Module):
     
 def analyze_band_transform(dir_to_save, idd, train_samp_1, train_samp_2, test_samp_1, test_samp_2, n_features, n_epochs, batch_size, lr, patience, device, update_epochs = 1, early_stop = True, visualize = True, seed = None):
     
+    
+    # save the best model
+    val_loss_to_beat = 10000
+    best_epoch = -1
+    
+    
     if seed is not None:
         #print(f"Using seed {seed}...")
         torch.manual_seed(seed)
@@ -264,8 +270,8 @@ def analyze_band_transform(dir_to_save, idd, train_samp_1, train_samp_2, test_sa
     #X_val = scaler.transform(X_val)
     #X_test = scaler.transform(X_test)
     
-    for i in range(X_train.shape[1]):
-        print(f"Feature {i} min, max for train: ({np.min(X_train[:,i])},{np.max(X_train[:,i])}), val: ({np.min(X_val[:,i])},{np.max(X_val[:,i])}), test: ({np.min(X_test[:,i])},{np.max(X_test[:,i])})")  
+    #for i in range(X_train.shape[1]):
+    #    print(f"Feature {i} min, max for train: ({np.min(X_train[:,i])},{np.max(X_train[:,i])}), val: ({np.min(X_val[:,i])},{np.max(X_val[:,i])}), test: ({np.min(X_test[:,i])},{np.max(X_test[:,i])})")  
         
 
 
@@ -275,7 +281,6 @@ def analyze_band_transform(dir_to_save, idd, train_samp_1, train_samp_2, test_sa
     X_test = np_to_torch(X_test, device)
     y_train = np_to_torch(y_train, device)
     y_val = np_to_torch(y_val, device)
-    
     
 
     epochs, epochs_val = [], []
@@ -340,12 +345,22 @@ def analyze_band_transform(dir_to_save, idd, train_samp_1, train_samp_2, test_sa
             epochs_val.append(epoch)
             losses_val.append(np.mean(val_losses_batch_per_e))
             
+            # see if the model has the best val loss
+            if np.mean(val_losses_batch_per_e) < val_loss_to_beat:
+                val_loss_to_beat = np.mean(val_losses_batch_per_e)
+                # save the model
+                model_path = f"{dir_to_save}/.{idd}_best_model.pt"
+                torch.save(dense_net, model_path)
+                best_epoch = epoch
+                
+            
             if early_stop:
                 early_stopping(np.mean(val_losses_batch_per_e))
                 
         if early_stopping.early_stop:
             break
 
+    print("Done training!")
     if visualize:
         fig, ax = plt.subplots(1, 1, figsize=(7, 5))
         ax.plot(epochs, losses)
@@ -358,10 +373,17 @@ def analyze_band_transform(dir_to_save, idd, train_samp_1, train_samp_2, test_sa
         fig.savefig(fname)
 
     # evaluate
+               
+    
+    # load in the model with the best val loss
+    
+    print(f"Loading in best model for {model_path}, val loss {val_loss_to_beat} from epoch {best_epoch}")
+    dense_net_eval = torch.load(model_path)
+    dense_net_eval.eval()
 
     # since we're not training, we don't need to calculate the gradients for our outputs
     with torch.no_grad():
-        outputs = dense_net(X_test).detach().cpu().numpy()
+        outputs = dense_net_eval(X_test).detach().cpu().numpy()
         predicted = np.round(outputs)
 
         # calculate auc 
