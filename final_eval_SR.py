@@ -9,6 +9,7 @@ import os
 from numba import cuda 
 
 from helpers.composite_helpers import *
+from CC import *
 
 
 # load in the reverse rescales
@@ -23,7 +24,7 @@ COMPUTING PARAMETERS
 """
 """
 
-os.environ["CUDA_VISIBLE_DEVICES"]="3"
+os.environ["CUDA_VISIBLE_DEVICES"]="2"
 device = cuda.get_current_device()
 device.reset()
 
@@ -44,21 +45,21 @@ RUN PARAMETERS
 
 seed = 1
 n_features = 5
-num_signal_to_inject = 0
+num_signal_to_inject = 2500
 oversampnum = 6
 
 eval_sim2real = False
-eval_sim2real_oversamp = False
+eval_sim2real_oversamp = True
 eval_cathode = False
 eval_curtains = False
 eval_full_sup = False
-eval_toy = True
+eval_toy = False
 
 
 epochs_NN =  100
 batch_size_NN = 128
 lr_NN = 0.001
-patience_NN = 20
+patience_NN = 10
 
 
 context_endpoints = (2500, 4500)
@@ -141,16 +142,14 @@ cathode_exp_dir = f"/global/home/users/rrmastandrea/CATHODE/CATHODE_models/nsig_
 # curtains
 curtains_exp_dir = f"/global/home/users/rrmastandrea/curtains/images/NSF_CURT_{num_signal_to_inject}sig_seed{seed}/Transformer/evaluation/"
 
-#curtains_exp_dir = f"/global/home/users/rrmastandrea/curtains/images/NSF_CURT/Transformer/evaluation/"
 
-
-for seed_NN in range(0, 20, 1):
+for seed_NN in range(15, 20, 1):
     
+    print(f"On classifier seed {seed_NN}...")
     
 
     if eval_sim2real:
         
-        print(f"On classifier seed {seed_NN}...")
 
         print("Evaluating sim2real...")
 
@@ -171,7 +170,6 @@ for seed_NN in range(0, 20, 1):
         
         
     if eval_sim2real_oversamp:
-
         print("Evaluating sim2real oversampled...")
 
         oversampled_sim_samples_train = np.load(os.path.join(oversamples_dir, f"transBD.npy"))
@@ -216,6 +214,9 @@ for seed_NN in range(0, 20, 1):
         curtains_trans_samps = minmaxscale(curtains_trans_samps, col_minmax, lower = 0, upper = 1, forward = True)
 
         roc = analyze_band_transform(results_dir, f"curtains_{seed_NN}", curtains_trans_samps[:,:-1], dat_samples_train[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
+        
+  
+        
         results_file = f"{results_dir}/curtains_{seed_NN}.txt"
 
         with open(results_file, "w") as results:
@@ -263,7 +264,7 @@ if eval_full_sup:
 
 
 
-    for seed_NN in range(10, 20, 1):
+    for seed_NN in range(0, 20, 1):
     
         print(f"On classifier seed {seed_NN}...")
 
@@ -281,7 +282,6 @@ if eval_full_sup:
         print(20*"*")
         print()
           
-print("Done!")
 
 
 
@@ -302,21 +302,27 @@ if eval_toy:
 
     print("Evaluating toy model case...")
     
-    path_to_minmax_toy = "/global/home/users/rrmastandrea/CURTAINS_SALAD/triangle_npoints100000_nfeatures2/data/col_minmax.npy"
+    path_to_minmax_toy = "/global/home/users/rrmastandrea/CURTAINS_SALAD/triangle_npoints100002_nfeatures2/data/col_minmax.npy"
     col_minmax_toy = np.load(path_to_minmax_toy)
     
 
-    path_to_samps_DAT = f"/global/home/users/rrmastandrea/CURTAINS_SALAD/triangle_npoints100000_nfeatures2/saved_models_BD_sim_Masked_PRQ_AR_2layers_16hidden_seed1/saved_models_s2d_Masked_PRQ_AR_2layers_16hidden_seed1/npy_samples/sr_DAT.npy"
-    path_to_samps_TRANS = f"/global/home/users/rrmastandrea/CURTAINS_SALAD/triangle_npoints100000_nfeatures2/saved_models_BD_sim_Masked_PRQ_AR_2layers_16hidden_seed1/saved_models_s2d_Masked_PRQ_AR_2layers_16hidden_seed1/npy_samples/sr_transSIM.npy"
-    path_to_samps_SIM = f"/global/home/users/rrmastandrea/CURTAINS_SALAD/triangle_npoints100000_nfeatures2/saved_models_BD_sim_Masked_PRQ_AR_2layers_16hidden_seed1/saved_models_s2d_Masked_PRQ_AR_2layers_16hidden_seed1/npy_samples/sr_SIM.npy"
+    path_to_samps_DAT = f"/global/home/users/rrmastandrea/CURTAINS_SALAD/triangle_npoints100002_nfeatures2/saved_models_BD_sim_Masked_PRQ_AR_2layers_16hidden_seed1/saved_models_s2d_Masked_PRQ_AR_2layers_16hidden_seed1/npy_samples/sr_DAT.npy"
+    path_to_samps_TRANS = f"/global/home/users/rrmastandrea/CURTAINS_SALAD/triangle_npoints100002_nfeatures2/saved_models_BD_sim_Masked_PRQ_AR_2layers_16hidden_seed1/saved_models_s2d_Masked_PRQ_AR_2layers_16hidden_seed1/npy_samples/sr_transSIM.npy"
+    path_to_samps_SIM = f"/global/home/users/rrmastandrea/CURTAINS_SALAD/triangle_npoints100002_nfeatures2/saved_models_BD_sim_Masked_PRQ_AR_2layers_16hidden_seed1/saved_models_s2d_Masked_PRQ_AR_2layers_16hidden_seed1/npy_samples/sr_SIM.npy"
+    
+    
+    #path_to_samps_DAT = f"/global/home/users/rrmastandrea/CURTAINS_SALAD/LHCO_0sig_f/saved_models_BD_sim_Masked_PRQ_AR_1layers_128hidden_15blocks_1seed/saved_models_PRQ_Coupling_2layers_16nodes_1seed/npy_samples/sr_DAT.npy"
+    #path_to_samps_TRANS = f"/global/home/users/rrmastandrea/CURTAINS_SALAD/LHCO_0sig_f/saved_models_BD_sim_Masked_PRQ_AR_1layers_128hidden_15blocks_1seed/saved_models_PRQ_Coupling_2layers_16nodes_1seed/npy_samples/sr_transSIM.npy"
+    #path_to_samps_SIM = f"/global/home/users/rrmastandrea/CURTAINS_SALAD/LHCO_0sig_f/saved_models_BD_sim_Masked_PRQ_AR_1layers_128hidden_15blocks_1seed/saved_models_PRQ_Coupling_2layers_16nodes_1seed/npy_samples/sr_SIM.npy"
     
     samp_dat = np.load(path_to_samps_DAT)
     samp_trans = np.load(path_to_samps_TRANS)
     samp_sim = np.load(path_to_samps_SIM)
     
-    samp_dat = minmaxscale(samp_dat, col_minmax_toy, lower = 0, upper = 1, forward = True)
-    samp_trans = minmaxscale(samp_trans, col_minmax_toy, lower = 0, upper = 1, forward = True)
-    samp_sim = minmaxscale(samp_sim, col_minmax_toy, lower = 0, upper = 1, forward = True)
+    
+    samp_dat = minmaxscale(samp_dat, col_minmax, lower = 0, upper = 1, forward = True)
+    samp_trans = minmaxscale(samp_trans, col_minmax, lower = 0, upper = 1, forward = True)
+    samp_sim = minmaxscale(samp_sim, col_minmax, lower = 0, upper = 1, forward = True)
     
     
     split = 0.8
@@ -342,15 +348,15 @@ if eval_toy:
     
         print(f"On classifier seed {seed_NN}...")
 
-        roc = analyze_band_transform(results_dir, f"toy_trans_{seed_NN}", train_trans[:,:-1], train_dat[:,:-1], test_trans[:,:-1], test_dat[:,:-1], 1, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
-        results_file = f"{results_dir}/toy_trans_{seed_NN}.txt"
+        roc = analyze_band_transform(results_dir, f"newtoy_transsim2real_{seed_NN}", train_trans[:,:-1], train_dat[:,:-1], test_trans[:,:-1], test_dat[:,:-1], 1, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
+        results_file = f"{results_dir}/newtoy_transsim2real_{seed_NN}.txt"
 
         with open(results_file, "w") as results:
             results.write(f"Discrim. power for STS bkg from STS sig in band SR: {roc}\n")
             results.write(3*"\n")
             
-        roc = analyze_band_transform(results_dir, f"toy_sim_{seed_NN}", train_sim[:,:-1], train_dat[:,:-1], test_sim[:,:-1], test_dat[:,:-1], 1, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
-        results_file = f"{results_dir}/toy_sim_{seed_NN}.txt"
+        roc = analyze_band_transform(results_dir, f"newtoy_sim2real_{seed_NN}", train_sim[:,:-1], train_dat[:,:-1], test_sim[:,:-1], test_dat[:,:-1], 1, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
+        results_file = f"{results_dir}/newtoy_sim2real_{seed_NN}.txt"
 
         with open(results_file, "w") as results:
             results.write(f"Discrim. power for STS bkg from STS sig in band SR: {roc}\n")
