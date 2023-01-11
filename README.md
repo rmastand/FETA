@@ -5,16 +5,24 @@ Accompanying paper: https://arxiv.org/abs/2212.11285 (authors: Tobias Golling, S
 
 For questions/comments about the code contact: rmastand@berkeley.edu
 
+## Pipeline 
 
-## Prepare the preprocess the data
+### Prepare and preprocess the data
 
-Use the notebook ```generate_dataset_and_preprocess.ipynb```
+Use the notebook ```generate_dataset_and_preprocess.ipynb```.
 
-## Run the pipeline
+### Generate the flow and train it to map between simulation and data in the SB.
 
-Use the script ```run_full_cycle_2step.py```
+Use the script ```run_full_cycle_2step.py```. The script also applies the trained flow to data in the SR to generate the background template samples.
 
+### Compare
 
-### Other comments
+Use the script ```final_eval_SR.py```.
+
+### Plot
+
+Use the notebook ```paper_plots.ipynb```.
+
+## Other comments
 
 The folder ```full_cycle_scripts``` contains alternate versions of the ```run_full_cycle_2step.py``` script that were used in the supplementary optimal transport studies (https://arxiv.org/abs/2212.06155).
