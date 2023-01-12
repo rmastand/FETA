@@ -21,8 +21,10 @@ Use the script ```final_eval_SR.py```.
 
 ### Generate all results plots
 
-Use the notebook ```paper_plots.ipynb```.
+Use the notebook ```make_sig_rej_plots.ipynb```.
 
 ## Other comments
 
 The folder ```full_cycle_scripts``` contains alternate versions of the ```run_full_cycle_2step.py``` script that were used in the supplementary optimal transport studies (https://arxiv.org/abs/2212.06155).
+
+The notebook ```paper_plots.ipynb``` contains code to generate the "prettier" schematics. 
