@@ -7,7 +7,7 @@ For questions/comments about the code contact: rmastand@berkeley.edu
 
 ## Pipeline 
 
-### Prepare and preprocess the data
+### Prepare and preprocess the data.
 
 Use the notebook ```generate_dataset_and_preprocess.ipynb```.
 
@@ -19,7 +19,7 @@ Use the script ```run_full_cycle_2step.py```. The script also applies the traine
 
 Use the script ```final_eval_SR.py```.
 
-### Generate all results plots
+### Generate all results plots.
 
 Use the notebook ```make_sig_rej_plots.ipynb```.
 
