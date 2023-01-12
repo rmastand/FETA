@@ -28,3 +28,5 @@ Use the notebook ```make_sig_rej_plots.ipynb```.
 The folder ```full_cycle_scripts``` contains alternate versions of the ```run_full_cycle_2step.py``` script that were used in the supplementary optimal transport studies (https://arxiv.org/abs/2212.06155). The notebook ```OT_studies.ipynb``` contains the code to make all of the plots shown in that paper.
 
 The notebook ```paper_plots.ipynb``` contains code to generate the "prettier" schematics. 
+
+To make the scatterplots of classifier scores for the different background construction methods (Figs 10 and 11 in the main paper), run ```run_scatter_plot.py``` to process the data, then ```analyze_scatterplot.ipynb``` to make the visualizations.
