@@ -15,7 +15,7 @@ Use the notebook ```generate_dataset_and_preprocess.ipynb```.
 
 Use the script ```run_full_cycle_2step.py```. The script also applies the trained flow to data in the SR to generate the background template samples.
 
-### Compare the FETA-generate background template samples with SR data.
+### Compare the FETA-generated background template samples with SR data.
 
 Use the script ```final_eval_SR.py```.
 
