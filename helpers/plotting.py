@@ -3,6 +3,63 @@ import matplotlib.pyplot as plt
 import os 
 
 from matplotlib.backends.backend_pdf import PdfPages
+import matplotlib
+
+
+"""
+Preprocessing visualizers
+"""
+
+
+def plot_feature_histograms(data_sim, data_dat, bins, n_features, feature_labels, sim_color = "#990000", dat_color = "#1c4587", n_plot = -1, linewidth = 2, third_plot = None):
+    
+    fig, ax = plt.subplots(1, n_features, figsize = (4*n_features, 5))
+
+    for i in range(n_features):
+        ax[i].hist(data_sim[:n_plot,i], bins = bins, density = True, label = "SIM", histtype = "step", color = sim_color, linewidth = linewidth)
+        ax[i].hist(data_dat[:n_plot,i], bins = bins, density = True, label = "DAT", histtype = "step", color = dat_color, linewidth = linewidth)
+        
+        if third_plot is not None:
+            ax[i].hist(third_plot[:n_plot,i], bins = bins, density = True, label = "SIG", histtype = "step", color = "green", linewidth = linewidth)
+        
+
+        ax[i].set_xlabel(feature_labels[i], fontsize = 30)
+        ax[i].set_yticks([])
+
+    ax[0].set_ylabel("Normalized Density")  
+    ax[0].legend(fontsize = 20, loc = "lower center")  
+    plt.tight_layout()
+    
+    return fig
+
+
+def scatterplot_features(data_sim, data_dat, bins, n_features, feature_labels, n_plot = -1, pointsize = 1):
+    
+    cm = matplotlib.cm.get_cmap('Greens')
+
+    # Scatterplot
+    fig, ax = plt.subplots(1, 2, figsize = (12, 4))
+    fig.subplots_adjust(right=0.8, left = 0.2)
+
+
+    sc_sim = ax[0].scatter(data_sim[:n_plot,0], data_sim[:n_plot,1], c = data_sim[:n_plot,-1], cmap=cm, s = 1)
+    ax[0].set_xlabel("F0")
+    ax[0].set_ylabel("F1")
+    ax[0].set_title("SIM")
+
+    sc_dat = ax[1].scatter(data_dat[:n_plot,0], data_dat[:n_plot,1], c = data_dat[:n_plot,-1], cmap=cm, s = 1)
+    ax[1].set_xlabel("F0")
+    ax[1].set_ylabel("F1")
+    ax[1].set_title("DAT")
+
+    cbar_ax_sim = fig.add_axes([0, 0.15, 0.05, 0.7])
+    cbar_ax_dat = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+    fig.colorbar(sc_sim, cax=cbar_ax_sim)
+    fig.colorbar(sc_dat, cax=cbar_ax_dat)
+
+    return fig
+
+
 
 
 
