@@ -25,6 +25,6 @@ Use the notebook ```make_sig_rej_plots.ipynb```.
 
 ## Other comments
 
-The folder ```full_cycle_scripts``` contains alternate versions of the ```run_full_cycle_2step.py``` script that were used in the supplementary optimal transport studies (https://arxiv.org/abs/2212.06155).
+The folder ```full_cycle_scripts``` contains alternate versions of the ```run_full_cycle_2step.py``` script that were used in the supplementary optimal transport studies (https://arxiv.org/abs/2212.06155). The notebook ```OT_studies.ipynb``` contains the code to make all of the plots shown in that paper.
 
 The notebook ```paper_plots.ipynb``` contains code to generate the "prettier" schematics. 
