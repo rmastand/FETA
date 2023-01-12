@@ -137,11 +137,11 @@ transforms_BD_sim = make_masked_AR_flow(num_layers_BD_sim, n_features, num_hidde
 base_dist_sim = StandardNormal(shape=[n_features])
 
 # Create and train
-create_and_train_flow("BDSIM", BD_sim_training_dir, transforms_BD_sim, base_dist_sim, hyperparameters_dict_BD_sim, device, dataset_train_sim, dataset_val_sim, early_stop = False, seed = seed)
+#create_and_train_flow("BDSIM", BD_sim_training_dir, transforms_BD_sim, base_dist_sim, hyperparameters_dict_BD_sim, device, dataset_train_sim, dataset_val_sim, early_stop = False, seed = seed)
 
-make_base_density_samples(hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, BD_sim_samples_dir, device, bands_dict, n_features, npull_dataset_val_sim, binning_scheme, col_minmax)
+#make_base_density_samples(hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, BD_sim_samples_dir, device, bands_dict, n_features, npull_dataset_val_sim, binning_scheme, col_minmax)
 
-evaluate_base_density(BD_sim_samples_dir, hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, device, bands_dict, n_features, hyperparameters_dict_eval)
+#evaluate_base_density(BD_sim_samples_dir, hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, device, bands_dict, n_features, hyperparameters_dict_eval)
 
 
 """
@@ -179,7 +179,7 @@ for param in flow_BD.parameters():
 flow_BD.eval()
 
  # Create and train
-create_and_train_flow("TRANS", s2d_training_dir, transforms_s2d, flow_BD, hyperparameters_dict_s2d, device, dataset_train_dat, dataset_val_dat, early_stop = False, seed = seed)
+#create_and_train_flow("TRANS", s2d_training_dir, transforms_s2d, flow_BD, hyperparameters_dict_s2d, device, dataset_train_dat, dataset_val_dat, early_stop = False, seed = seed)
 
 
 """
@@ -191,9 +191,9 @@ EVALUATE SIM -> DAT
 """
 
 
-make_s2d_samples(["sb1", "sb2"], hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, BD_sim_training_dir, s2d_training_dir, s2d_training_dir, device, bands_dict, n_features, npull_dataset_val_sim, npull_dataset_val_dat, binning_scheme, col_minmax, direct = False)
+#make_s2d_samples(["sb1", "sb2"], hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, BD_sim_training_dir, s2d_training_dir, s2d_training_dir, device, bands_dict, n_features, npull_dataset_val_sim, npull_dataset_val_dat, binning_scheme, col_minmax, direct = False)
 
-evaluate_s2d(["sb1", "sb2"], s2d_samples_dir, s2d_training_dir, hyperparameters_dict_eval, device, bands_dict, n_features, num = 20)
+evaluate_s2d(["sb1", "sb2"], s2d_samples_dir, s2d_training_dir, hyperparameters_dict_eval, device, bands_dict, n_features)
 
 classif_train_sim = ToyDataset(data_dir, "classif_train_sim.npy")
 classif_train_dat = ToyDataset(data_dir, "classif_train_dat.npy")
