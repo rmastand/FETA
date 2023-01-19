@@ -12,6 +12,59 @@ from helpers.composite_helpers import *
 
 from sklearn.model_selection import KFold
 
+
+feta_dir = "/global/home/users/rrmastandrea/FETA"
+# load in the reverse rescales
+path_to_minmax = f"{feta_dir}/LHCO_STS/data/col_minmax.npy"
+col_minmax = np.load(path_to_minmax)
+
+
+scatterplot_dir = os.path.join(feta_dir, "scatterplot_results")
+os.makedirs(scatterplot_dir, exist_ok=True)
+
+"""
+"""
+"""
+COMPUTING PARAMETERS
+"""
+"""
+"""
+
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
+device = cuda.get_current_device()
+device.reset()
+
+# set the number of threads that pytorch will use
+torch.set_num_threads(2)
+
+# set gpu device
+device = torch.device( "cuda" if torch.cuda.is_available() else "cpu")
+print( "Using device: " + str( device ), flush=True)
+
+
+"""
+"""
+"""
+RUN PARAMETERS
+"""
+"""
+"""
+
+seed = 1
+n_features = 5
+num_signal_to_inject = 0
+oversampnum = 6
+
+
+epochs_NN =  100
+batch_size_NN = 256
+lr_NN = 0.001
+patience_NN = 5
+
+
+
+
+
 def analyze_transform_for_scatter_kfold(idd, train_samp_1, train_samp_2, test_samp_1, test_samp_2, n_features, n_epochs, batch_size, lr, patience, device, early_stop = True, visualize = True, seed = None, k_folds = 5):
     
     if seed is not None:
@@ -130,7 +183,7 @@ def analyze_transform_for_scatter_kfold(idd, train_samp_1, train_samp_2, test_sa
                 if np.mean(val_losses_batch_per_e) < val_loss_to_beat:
                     val_loss_to_beat = np.mean(val_losses_batch_per_e)
                     # save the model
-                    model_path = f".{idd}_fold{fold}.pt"
+                    model_path = f"{scatterplot_dir}/.{idd}_fold{fold}.pt"
                     torch.save(dense_net, model_path)
                     best_epoch = epoch
 
@@ -158,7 +211,7 @@ def analyze_transform_for_scatter_kfold(idd, train_samp_1, train_samp_2, test_sa
     
     # load in the model / fold with the best val loss 
     best_model_index = np.argmin(fold_best_val_losses)
-    best_model_path = f".{idd}_fold{best_model_index}.pt"
+    best_model_path = f"{scatterplot_dir}/.{idd}_fold{best_model_index}.pt"
     print(f"Loading in best model for {best_model_path}, val loss {np.min(fold_best_val_losses)} from fold {best_model_index}")
     
     dense_net_eval = torch.load(best_model_path)
@@ -170,54 +223,6 @@ def analyze_transform_for_scatter_kfold(idd, train_samp_1, train_samp_2, test_sa
     return outputs
 
 
-feta_dir = "global/home/users/rrmastandrea/FETA"
-# load in the reverse rescales
-path_to_minmax = f"{feta_dir}/LHCO_STS/data/col_minmax.npy"
-col_minmax = np.load(path_to_minmax)
-
-
-scatterplot_dir = os.path.join(feta_dir, "scatterplot_results")
-os.makedirs(scatterplot_dir, exist_ok=True)
-
-"""
-"""
-"""
-COMPUTING PARAMETERS
-"""
-"""
-"""
-
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
-device = cuda.get_current_device()
-device.reset()
-
-# set the number of threads that pytorch will use
-torch.set_num_threads(2)
-
-# set gpu device
-device = torch.device( "cuda" if torch.cuda.is_available() else "cpu")
-print( "Using device: " + str( device ), flush=True)
-
-
-
-"""
-"""
-"""
-RUN PARAMETERS
-"""
-"""
-"""
-
-seed = 1
-n_features = 5
-num_signal_to_inject = 0
-oversampnum = 6
-
-
-epochs_NN =  100
-batch_size_NN = 256
-lr_NN = 0.001
-patience_NN = 5
 
 
 context_endpoints = (2500, 4500)
@@ -296,6 +301,7 @@ curtains_exp_dir = f"/global/home/users/rrmastandrea/curtains/images/NSF_CURT_{n
 
 seed_NN = 4
 
+"""
 
 print("Evaluating sim2real oversampled...")
 
@@ -303,7 +309,7 @@ oversampled_sim_samples_train = np.load(os.path.join(oversamples_dir, f"transBD.
 oversampled_sim_samples_train = minmaxscale(oversampled_sim_samples_train, col_minmax, lower = -3, upper = 3, forward = False)
 oversampled_sim_samples_train = minmaxscale(oversampled_sim_samples_train, col_minmax, lower = 0, upper = 1, forward = True)
 
-feta_results = analyze_transform_for_scatter_kfold(f"sim2real_oversamp{oversampnum}_{seed_NN}", oversampled_sim_samples_train[:,:-1], dat_samples_train[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
+feta_results = analyze_transform_for_scatter_kfold(f"sim2real_oversamp{oversampnum}_seedNN{seed_NN}_nsig{num_signal_to_inject}", oversampled_sim_samples_train[:,:-1], dat_samples_train[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
 np.save(f"{scatterplot_dir}/feta_results", feta_results)
 
 print(3*"\n")
@@ -313,15 +319,20 @@ print(3*"\n")
 print("Evaluating cathode...")
 
 cathode_trans_samps = np.load(os.path.join(cathode_exp_dir, f"SR_samples.npy"))
-cathode_results = analyze_transform_for_scatter_kfold(f"cathode_{seed_NN}", cathode_trans_samps[:,:-1], dat_samples_train[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
+cathode_results = analyze_transform_for_scatter_kfold(f"cathode_seedNN{seed_NN}_nsig{num_signal_to_inject}", cathode_trans_samps[:,:-1], dat_samples_train[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
 np.save(f"{scatterplot_dir}/cathode_results", cathode_results)
 print(3*"\n")
-
+"""
 
 print("Evaluating curtains...")
-curtains_trans_samps = np.load(os.path.join(curtains_exp_dir, f"samples_sb1_2_to_sr.npy"))
+#curtains_trans_samps = np.load(os.path.join(curtains_exp_dir, f"samples_sb1_2_to_sr.npy"))
+#curtains_trans_samps = minmaxscale(curtains_trans_samps, col_minmax, lower = 0, upper = 1, forward = True)
+samps = np.load(os.path.join(curtains_exp_dir, f"samples_sb1_2_to_sr.npz"))
+d = dict(zip(("data1{}".format(k) for k in samps), (samps[k] for k in samps)))
+curtains_trans_samps = d["data1arr_1"]
 curtains_trans_samps = minmaxscale(curtains_trans_samps, col_minmax, lower = 0, upper = 1, forward = True)
-curtains_results = analyze_transform_for_scatter_kfold(f"curtains_{seed_NN}", curtains_trans_samps[:,:-1], dat_samples_train[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
+
+curtains_results = analyze_transform_for_scatter_kfold(f"curtains_seedNN{seed_NN}_nsig{num_signal_to_inject}", curtains_trans_samps[:,:-1], dat_samples_train[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
 np.save(f"{scatterplot_dir}/curtains_results", curtains_results)    
 print(3*"\n")
 
@@ -344,7 +355,7 @@ true_sup_sig = np.load(os.path.join(true_samples_dir, f"true_sup_sig.npy"))
 true_sup_bkg = minmaxscale(true_sup_bkg, col_minmax, lower = 0, upper = 1, forward = True)
 true_sup_sig = minmaxscale(true_sup_sig, col_minmax, lower = 0, upper = 1, forward = True)
 
-full_sup_results = analyze_transform_for_scatter_kfold(f"full_sup_{seed_NN}",true_sup_bkg[:,:-1], true_sup_sig[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
+full_sup_results = analyze_transform_for_scatter_kfold(f"full_sup_seedNN{seed_NN}",true_sup_bkg[:,:-1], true_sup_sig[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
 np.save(f"{scatterplot_dir}/full_sup_results", full_sup_results)
 print(3*"\n")
 
