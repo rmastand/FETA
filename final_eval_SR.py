@@ -13,7 +13,7 @@ from CC import *
 
 
 # load in the reverse rescales
-path_to_minmax = "/global/home/users/rrmastandrea/CURTAINS_SALAD/LHCO_STS/data/col_minmax.npy"
+path_to_minmax = "/global/home/users/rrmastandrea/FETA/LHCO_STS/data/col_minmax.npy"
 col_minmax = np.load(path_to_minmax)
 
 """
@@ -85,7 +85,7 @@ STS DATA
 """
 """
 
-STS_dir = "/global/home/users/rrmastandrea/CURTAINS_SALAD/LHCO_STS/data/"
+STS_dir = "/global/home/users/rrmastandrea/FETA/LHCO_STS/data/"
 
 STS_bkg = ToyDataset(STS_dir, "STS_bkg.npy")
 STS_sig = ToyDataset(STS_dir, "STS_sig.npy")
@@ -110,7 +110,7 @@ EVAL SIM2REAL
 
 # sim2real
 
-sim2real_exp_dir = f"/global/home/users/rrmastandrea/CURTAINS_SALAD/LHCO_{num_signal_to_inject}sig_f/"
+sim2real_exp_dir = f"/global/home/users/rrmastandrea/FETA/LHCO_{num_signal_to_inject}sig_f/"
 
 num_layers_BD_sim = 1
 num_hidden_features_BD_sim = 128
@@ -245,12 +245,12 @@ if eval_full_sup:
     results_dir = f"/global/home/users/rrmastandrea/NF_results/nsig_inj0_seed1/"
     os.makedirs(results_dir, exist_ok=True)
     
-    true_samples_dir = f"/global/home/users/rrmastandrea/CURTAINS_SALAD/LHCO_STS/data/"
+    true_samples_dir = f"/global/home/users/rrmastandrea/FETA/LHCO_STS/data/"
 
  
     print("Evaluating fully supervised case...")
     
-    true_samples_dir = f"/global/home/users/rrmastandrea/CURTAINS_SALAD/LHCO_STS/data/"
+    true_samples_dir = f"/global/home/users/rrmastandrea/FETA/LHCO_STS/data/"
 
     true_sup_bkg = np.load(os.path.join(true_samples_dir, f"true_sup_bkg.npy"))
     true_sup_sig = np.load(os.path.join(true_samples_dir, f"true_sup_sig.npy"))
