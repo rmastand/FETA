@@ -193,6 +193,10 @@ for seed_NN in range(15, 20, 1):
         print("Evaluating cathode...")
 
         cathode_trans_samps = np.load(os.path.join(cathode_exp_dir, f"SR_samples.npy"))
+        mmin = np.min(cathode_trans_samps[:,-1])
+        mmax = np.max(cathode_trans_samps[:,-1])
+    
+    cathode_trans_samps[:,-1] = 0.33 + 0.34*(cathode_trans_samps[:,-1] - mmin)/(mmax - mmin)
         
         roc = analyze_band_transform(results_dir, f"cathode_{seed_NN}", cathode_trans_samps[:,:-1], dat_samples_train[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
         results_file = f"{results_dir}/cathode_{seed_NN}.txt"
@@ -210,7 +214,10 @@ for seed_NN in range(15, 20, 1):
 
         print("Evaluating curtains...")
 
-        curtains_trans_samps = np.load(os.path.join(curtains_exp_dir, f"samples_sb1_2_to_sr.npy"))
+        
+        samps = np.load(os.path.join(curtains_exp_dir, f"samples_sb1_2_to_sr.npz"))
+        d = dict(zip(("data1{}".format(k) for k in samps), (samps[k] for k in samps)))
+        curtains_trans_samps = d["data1arr_1"]
         curtains_trans_samps = minmaxscale(curtains_trans_samps, col_minmax, lower = 0, upper = 1, forward = True)
 
         roc = analyze_band_transform(results_dir, f"curtains_{seed_NN}", curtains_trans_samps[:,:-1], dat_samples_train[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)

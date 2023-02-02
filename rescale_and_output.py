@@ -25,12 +25,12 @@ RUN PARAMETERS
 
 seed = 1
 n_features = 5
-num_signal_to_inject = 2500
+num_signal_to_inject = 500
 oversampnum = 6
 
-rescale_feta_oversamp = False
+rescale_feta_oversamp = True
 rescale_cathode = True
-rescale_curtains = False
+rescale_curtains = True
 
 epochs_NN =  100
 batch_size_NN = 128
@@ -127,6 +127,12 @@ if rescale_cathode:
 
     print("Rescaling cathode...")
     cathode_trans_samps = np.load(os.path.join(cathode_exp_dir, f"SR_samples.npy"))
+    # rescale the last index (masses)
+    
+    mmin = np.min(cathode_trans_samps[:,-1])
+    mmax = np.max(cathode_trans_samps[:,-1])
+    
+    cathode_trans_samps[:,-1] = 0.33 + 0.34*(cathode_trans_samps[:,-1] - mmin)/(mmax - mmin)
     np.save(f"{output_dir_nsig}/cathode", cathode_trans_samps)
 
 # curtains
@@ -135,8 +141,12 @@ curtains_exp_dir = f"/global/home/users/rrmastandrea/curtains/images/NSF_CURT_{n
 if rescale_curtains:
 
     print("Rescaling curtains...")
-
-    curtains_trans_samps = np.load(os.path.join(curtains_exp_dir, f"samples_sb1_2_to_sr.npy"))
+    
+    
+    samps = np.load(os.path.join(curtains_exp_dir, f"samples_sb1_2_to_sr.npz"))
+    d = dict(zip(("data1{}".format(k) for k in samps), (samps[k] for k in samps)))
+    curtains_trans_samps = d["data1arr_1"]
     curtains_trans_samps = minmaxscale(curtains_trans_samps, col_minmax, lower = 0, upper = 1, forward = True)
+
     np.save(f"{output_dir_nsig}/curtains", curtains_trans_samps)
         
