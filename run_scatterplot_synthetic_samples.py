@@ -14,13 +14,11 @@ from sklearn.model_selection import KFold
 
 
 feta_dir = "/global/home/users/rrmastandrea/FETA"
-# load in the reverse rescales
-path_to_minmax = f"{feta_dir}/LHCO_STS/data/col_minmax.npy"
-col_minmax = np.load(path_to_minmax)
 
-
-scatterplot_dir = os.path.join(feta_dir, "scatterplot_results")
+scatterplot_dir = os.path.join(feta_dir, "scatterplot_all_synth_samples")
 os.makedirs(scatterplot_dir, exist_ok=True)
+
+scaled_data_dir = "/global/home/users/rrmastandrea/scaled_data/"
 
 """
 """
@@ -30,7 +28,7 @@ COMPUTING PARAMETERS
 """
 """
 
-os.environ["CUDA_VISIBLE_DEVICES"]="2"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 device = cuda.get_current_device()
 device.reset()
 
@@ -52,17 +50,31 @@ RUN PARAMETERS
 
 seed = 1
 n_features = 5
-num_signal_to_inject = 2500
-oversampnum = 6
+
+num_signal_to_inject = 1500
+index_start = 0
+index_stop = 5
+
+
+eval_feta = False
+eval_cathode = False
+eval_curtains = False
+eval_full_sup = False
+eval_combined = True
+
+# parameters for combined samples
+num_synth_samples = 600000
+# coefficients for mixing
+# recommended to have them sum to 1 but there's no check on that
+c_feta = .33
+c_cathode = 0.33
+c_curtains = 0.33
 
 
 epochs_NN =  100
 batch_size_NN = 256
 lr_NN = 0.001
 patience_NN = 5
-
-
-
 
 
 def analyze_transform_for_scatter_kfold(idd, train_samp_1, train_samp_2, test_samp_1, test_samp_2, n_features, n_epochs, batch_size, lr, patience, device, early_stop = True, visualize = True, seed = None, k_folds = 5):
@@ -116,8 +128,8 @@ def analyze_transform_for_scatter_kfold(idd, train_samp_1, train_samp_2, test_sa
         train_loader = torch.utils.data.DataLoader(train_set, batch_size = batch_size, shuffle = True)
         val_loader = torch.utils.data.DataLoader(val_set, batch_size = batch_size, shuffle = True)
         
-        print("fold test data, labels shape:", X_train_fold.shape, y_train_fold.shape)
-        print("fold val data, labels  shape:", X_val_fold.shape, y_val_fold.shape)
+        #print("fold test data, labels shape:", X_train_fold.shape, y_train_fold.shape)
+        #print("fold val data, labels  shape:", X_val_fold.shape, y_val_fold.shape)
         
         # initialze the network
         dense_net = NeuralNet(input_shape = n_features)
@@ -127,13 +139,10 @@ def analyze_transform_for_scatter_kfold(idd, train_samp_1, train_samp_2, test_sa
         
         if early_stop:
             early_stopping = EarlyStopping(patience=patience)
-            print(early_stopping.patience, early_stopping.counter, early_stopping.best_loss, early_stopping.early_stop)
-   
         
          # save the best model
         val_loss_to_beat = 10000
         best_epoch = -1
-        print(val_loss_to_beat)
 
         epochs, losses, losses_val = [], [], []
 
@@ -245,96 +254,78 @@ STS DATA
 """
 """
 
-STS_dir = f"{feta_dir}/LHCO_STS/data/"
+STS_bkg_dataset = np.load(f"{scaled_data_dir}/STS_bkg.npy")
+STS_sig_dataset = np.load(f"{scaled_data_dir}/STS_sig.npy")
 
-STS_bkg = ToyDataset(STS_dir, "STS_bkg.npy")
-STS_sig = ToyDataset(STS_dir, "STS_sig.npy")
+dat_samples_train = np.load(f"{scaled_data_dir}/nsig_injected_{num_signal_to_inject}/data.npy")
 
-STS_bkg_dataset = STS_bkg.pull_from_mass_range([bands_dict["sr"]])
-STS_sig_dataset = STS_sig.pull_from_mass_range([bands_dict["sr"]])
-
-STS_bkg_dataset = minmaxscale(STS_bkg_dataset.data, col_minmax, lower = 0, upper = 1, forward = True)
-STS_sig_dataset = minmaxscale(STS_sig_dataset.data, col_minmax, lower = 0, upper = 1, forward = True)
 
 
 """
 """
 """
-EVAL SIM2REAL
+EVAL 
 """
 """
 """
 
-# sim2real
 
-sim2real_exp_dir = f"{feta_dir}/LHCO_{num_signal_to_inject}sig_f/"
-
-num_layers_BD_sim = 1
-num_hidden_features_BD_sim = 128
-num_blocks = 15
-
-num_layers_s2d = 2
-num_nodes_s2d = 16
-
-
-loc_id_BD_sim = f"BD_sim_Masked_PRQ_AR_{num_layers_BD_sim}layers_{num_hidden_features_BD_sim}hidden_{num_blocks}blocks_{seed}seed"
-loc_id_s2d = f"PRQ_Coupling_{num_layers_s2d}layers_{num_nodes_s2d}nodes_{seed}seed"
-BD_sim_training_dir = os.path.join(sim2real_exp_dir, f"saved_models_{loc_id_BD_sim}/")
-s2d_training_dir = os.path.join(BD_sim_training_dir, f"saved_models_{loc_id_s2d}/")
-s2d_samples_dir = os.path.join(s2d_training_dir, f"npy_samples/")
-
-oversamples_dir = os.path.join(s2d_training_dir, f"oversampling_{oversampnum}/")
+# for the combined samples
+num_feta = int(c_feta*num_synth_samples)
+num_cathode = int(c_cathode*num_synth_samples)
+num_curtains = int(c_curtains*num_synth_samples)
+    
+# load in the data samples
+feta_samples = np.load(f"{scaled_data_dir}/nsig_injected_{num_signal_to_inject}/feta.npy")
+cathode_samples = np.load(f"{scaled_data_dir}/nsig_injected_{num_signal_to_inject}/cathode.npy")
+curtains_samples = np.load(f"{scaled_data_dir}/nsig_injected_{num_signal_to_inject}/curtains.npy")
 
 
-# load in the dat samples
-dat_samples_train = np.load(os.path.join(s2d_samples_dir, f"sr_DAT.npy")) 
-dat_samples_train = minmaxscale(dat_samples_train, col_minmax, lower = -3, upper = 3, forward = False)
-dat_samples_train = minmaxscale(dat_samples_train, col_minmax, lower = 0, upper = 1, forward = True)
+for seed_NN in range(index_start, index_stop, 1):
 
-# cathode
-cathode_exp_dir = f"/global/home/users/rrmastandrea/CATHODE/CATHODE_models/nsig_inj{num_signal_to_inject}/seed{seed}/"
+    if eval_feta:
 
-# curtains
-curtains_exp_dir = f"/global/home/users/rrmastandrea/curtains/images/NSF_CURT_{num_signal_to_inject}sig_seed{seed}/Transformer/evaluation/"
+            print(f"Evaluating feta (seed {seed_NN} of {index_stop})...")
+
+            feta_results = analyze_transform_for_scatter_kfold(f"feta_seedNN{seed_NN}_nsig{num_signal_to_inject}", feta_samples[:,:-1], dat_samples_train[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
+            np.save(f"{scatterplot_dir}/feta_results_seedNN{seed_NN}_nsig{num_signal_to_inject}", feta_results)
 
 
+    if eval_cathode:
 
-seed_NN = 4
+            print(f"Evaluating cathode (seed {seed_NN} of {index_stop})...")
 
-
-
-print("Evaluating sim2real oversampled...")
-
-oversampled_sim_samples_train = np.load(os.path.join(oversamples_dir, f"transBD.npy"))
-oversampled_sim_samples_train = minmaxscale(oversampled_sim_samples_train, col_minmax, lower = -3, upper = 3, forward = False)
-oversampled_sim_samples_train = minmaxscale(oversampled_sim_samples_train, col_minmax, lower = 0, upper = 1, forward = True)
-
-feta_results = analyze_transform_for_scatter_kfold(f"sim2real_oversamp{oversampnum}_seedNN{seed_NN}_nsig{num_signal_to_inject}", oversampled_sim_samples_train[:,:-1], dat_samples_train[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
-np.save(f"{scatterplot_dir}/feta_results_nsig{num_signal_to_inject}", feta_results)
-
-print(3*"\n")
+            cathode_results = analyze_transform_for_scatter_kfold(f"cathode_seedNN{seed_NN}_nsig{num_signal_to_inject}", cathode_samples[:,:-1], dat_samples_train[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
+            np.save(f"{scatterplot_dir}/cathode_results_seedNN{seed_NN}_nsig{num_signal_to_inject}", cathode_results)
 
 
+    if eval_curtains:
 
-print("Evaluating cathode...")
+            print(f"Evaluating curtains (seed {seed_NN} of {index_stop})...")
 
-cathode_trans_samps = np.load(os.path.join(cathode_exp_dir, f"SR_samples.npy"))
-cathode_results = analyze_transform_for_scatter_kfold(f"cathode_seedNN{seed_NN}_nsig{num_signal_to_inject}", cathode_trans_samps[:,:-1], dat_samples_train[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
-np.save(f"{scatterplot_dir}/cathode_results_nsig{num_signal_to_inject}", cathode_results)
-print(3*"\n")
+            curtains_results = analyze_transform_for_scatter_kfold(f"curtains_seedNN{seed_NN}_nsig{num_signal_to_inject}", curtains_samples[:,:-1], dat_samples_train[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
+            np.save(f"{scatterplot_dir}/curtains_results_seedNN{seed_NN}_nsig{num_signal_to_inject}", curtains_results)  
+            
+            
+    if eval_combined:
+        
+            print(f"Evaluating combined samples (seed {seed_NN} of {index_stop})...")
+    
+            # select samples
+            indices_feta = np.random.choice(len(feta_samples), size = num_feta)
+            selected_feta = feta_samples[indices_feta]
+            indices_cathode = np.random.choice(len(cathode_samples), size = num_cathode)
+            selected_cathode = cathode_samples[indices_cathode]
+            indices_curtains = np.random.choice(len(curtains_samples), size = num_curtains)
+            selected_curtains = curtains_samples[indices_curtains]
 
+            # concatenate and shuffle
+            synth_samples = np.concatenate((selected_feta, selected_cathode, selected_curtains))
+            np.random.shuffle(synth_samples)
+                        
+            combined_results = analyze_transform_for_scatter_kfold(f"combined_seedNN{seed_NN}_nsig{num_signal_to_inject}", synth_samples[:,:-1], dat_samples_train[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
+            np.save(f"{scatterplot_dir}/combined_results_seedNN{seed_NN}_nsig{num_signal_to_inject}", combined_results)  
 
-print("Evaluating curtains...")
-#curtains_trans_samps = np.load(os.path.join(curtains_exp_dir, f"samples_sb1_2_to_sr.npy"))
-#curtains_trans_samps = minmaxscale(curtains_trans_samps, col_minmax, lower = 0, upper = 1, forward = True)
-samps = np.load(os.path.join(curtains_exp_dir, f"samples_sb1_2_to_sr.npz"))
-d = dict(zip(("data1{}".format(k) for k in samps), (samps[k] for k in samps)))
-curtains_trans_samps = d["data1arr_1"]
-curtains_trans_samps = minmaxscale(curtains_trans_samps, col_minmax, lower = 0, upper = 1, forward = True)
-
-curtains_results = analyze_transform_for_scatter_kfold(f"curtains_seedNN{seed_NN}_nsig{num_signal_to_inject}", curtains_trans_samps[:,:-1], dat_samples_train[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
-np.save(f"{scatterplot_dir}/curtains_results_nsig{num_signal_to_inject}", curtains_results)    
-print(3*"\n")
 
 
 
@@ -345,21 +336,27 @@ SUPERVISED CLASSIFIER
 "
 """
 
+if eval_full_sup:
+    
+    # load in the non STS labeled samples
+    # load in the reverse rescales
+    path_to_minmax = "/global/home/users/rrmastandrea/FETA/LHCO_STS/data/col_minmax.npy"
+    col_minmax = np.load(path_to_minmax)
+    true_samples_dir = f"/global/home/users/rrmastandrea/FETA/LHCO_STS/data/"
 
-print("Evaluating fully supervised case...")
+    true_sup_bkg = np.load(os.path.join(true_samples_dir, f"true_sup_bkg.npy"))
+    true_sup_sig = np.load(os.path.join(true_samples_dir, f"true_sup_sig.npy"))
+    true_sup_bkg = minmaxscale(true_sup_bkg, col_minmax, lower = 0, upper = 1, forward = True)
+    true_sup_sig = minmaxscale(true_sup_sig, col_minmax, lower = 0, upper = 1, forward = True)
 
-true_samples_dir = f"{feta_dir}/LHCO_STS/data/"
 
-true_sup_bkg = np.load(os.path.join(true_samples_dir, f"true_sup_bkg.npy"))
-true_sup_sig = np.load(os.path.join(true_samples_dir, f"true_sup_sig.npy"))
-true_sup_bkg = minmaxscale(true_sup_bkg, col_minmax, lower = 0, upper = 1, forward = True)
-true_sup_sig = minmaxscale(true_sup_sig, col_minmax, lower = 0, upper = 1, forward = True)
+    for seed_NN in range(index_start, index_stop, 1):
+    
+        print(f"Evaluating full sup (seed {seed_NN} of {index_stop})...")
 
-full_sup_results = analyze_transform_for_scatter_kfold(f"full_sup_seedNN{seed_NN}",true_sup_bkg[:,:-1], true_sup_sig[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
-np.save(f"{scatterplot_dir}/full_sup_results_nsig{num_signal_to_inject}", full_sup_results)
-print(3*"\n")
+        full_sup_results = analyze_transform_for_scatter_kfold(f"full_sup_seedNN{seed_NN}",true_sup_bkg[:,:-1], true_sup_sig[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
+        np.save(f"{scatterplot_dir}/full_sup_results_seedNN{seed_NN}", full_sup_results)
 
-          
 print("Done!")
 
 
