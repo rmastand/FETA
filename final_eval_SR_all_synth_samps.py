@@ -18,7 +18,7 @@ COMPUTING PARAMETERS
 """
 """
 
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="3"
 device = cuda.get_current_device()
 device.reset()
 
@@ -41,14 +41,14 @@ seed = 1
 n_features = 5
 
 
-num_signal_to_inject = 1500
+num_signal_to_inject = 1200
 index_start = 0
-index_stop = 5
+index_stop = 20
 
-eval_feta = False
-eval_cathode = False
-eval_curtains = False
-eval_full_sup = False
+eval_feta = True
+eval_cathode = True
+eval_curtains = True
+eval_full_sup = True
 eval_combined = True
 
 
@@ -56,9 +56,9 @@ eval_combined = True
 num_synth_samples = 600000
 # coefficients for mixing
 # recommended to have them sum to 1 but there's no check on that
-c_feta = .33
-c_cathode = 0.33
-c_curtains = 0.33
+c_feta = .3333333333
+c_cathode = 0.3333333333
+c_curtains = 0.3333333333
 
 epochs_NN =  100
 batch_size_NN = 128
@@ -77,7 +77,7 @@ bands_dict = {"ob1": [2500, 2900],
 
 binning_scheme = np.linspace(-3.5, 3.5, 50)
 
-results_dir = f"/global/home/users/rrmastandrea/NF_results_2/nsig_inj{num_signal_to_inject}_seed{seed}/"
+results_dir = f"/clusterfs/ml4hep/rrmastandrea/NF_results/nsig_inj{num_signal_to_inject}_seed{seed}/"
 os.makedirs(results_dir, exist_ok=True)
 scaled_data_dir = "/global/home/users/rrmastandrea/scaled_data/"
 
@@ -181,6 +181,8 @@ for seed_NN in range(index_start, index_stop, 1):
         # concatenate and shuffle
         synth_samples = np.concatenate((selected_feta, selected_cathode, selected_curtains))
         np.random.shuffle(synth_samples)
+        
+        print(synth_samples.shape)
 
         roc = analyze_band_transform(results_dir, f"combined_{seed_NN}", synth_samples[:,:-1], dat_samples_train[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
 

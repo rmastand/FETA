@@ -13,7 +13,7 @@ from helpers.composite_helpers import *
 from sklearn.model_selection import KFold
 
 
-feta_dir = "/global/home/users/rrmastandrea/FETA"
+feta_dir = "/clusterfs/ml4hep/rrmastandrea/FETA"
 
 scatterplot_dir = os.path.join(feta_dir, "scatterplot_all_synth_samples")
 os.makedirs(scatterplot_dir, exist_ok=True)
@@ -28,7 +28,7 @@ COMPUTING PARAMETERS
 """
 """
 
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
+os.environ["CUDA_VISIBLE_DEVICES"]="3"
 device = cuda.get_current_device()
 device.reset()
 
@@ -51,16 +51,16 @@ RUN PARAMETERS
 seed = 1
 n_features = 5
 
-num_signal_to_inject = 1500
+num_signal_to_inject = 10000
 index_start = 0
 index_stop = 5
 
 
-eval_feta = False
-eval_cathode = False
-eval_curtains = False
-eval_full_sup = False
-eval_combined = True
+eval_feta = True
+eval_cathode = True
+eval_curtains = True
+eval_full_sup = True
+eval_combined = False
 
 # parameters for combined samples
 num_synth_samples = 600000
@@ -258,7 +258,7 @@ STS_bkg_dataset = np.load(f"{scaled_data_dir}/STS_bkg.npy")
 STS_sig_dataset = np.load(f"{scaled_data_dir}/STS_sig.npy")
 
 dat_samples_train = np.load(f"{scaled_data_dir}/nsig_injected_{num_signal_to_inject}/data.npy")
-
+print(dat_samples_train.shape)
 
 
 """
@@ -279,7 +279,7 @@ num_curtains = int(c_curtains*num_synth_samples)
 feta_samples = np.load(f"{scaled_data_dir}/nsig_injected_{num_signal_to_inject}/feta.npy")
 cathode_samples = np.load(f"{scaled_data_dir}/nsig_injected_{num_signal_to_inject}/cathode.npy")
 curtains_samples = np.load(f"{scaled_data_dir}/nsig_injected_{num_signal_to_inject}/curtains.npy")
-
+print(feta_samples.shape, cathode_samples.shape, curtains_samples.shape)
 
 for seed_NN in range(index_start, index_stop, 1):
 
