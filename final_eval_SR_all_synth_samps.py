@@ -8,6 +8,9 @@ import torch
 import os
 from numba import cuda 
 
+from helpers.composite_helpers import *
+
+
 
 """
 """
@@ -17,7 +20,7 @@ COMPUTING PARAMETERS
 """
 """
 
-os.environ["CUDA_VISIBLE_DEVICES"]="3"
+os.environ["CUDA_VISIBLE_DEVICES"]= "3"
 device = cuda.get_current_device()
 device.reset()
 
@@ -40,7 +43,7 @@ seed = 1
 n_features = 5
 
 
-num_signal_to_inject = 5000
+num_signal_to_inject = 3500
 index_start = 0
 index_stop = 20
 
@@ -48,17 +51,14 @@ eval_feta = True
 eval_cathode = True
 eval_curtains = True
 eval_salad = True
-eval_full_sup = True
-eval_combined = False
+eval_full_sup = False
+eval_combined = True
 
 
 # parameters for combined samples
-num_synth_samples = 600000
+num_samples = 400000
 # coefficients for mixing
 # recommended to have them sum to 1 but there's no check on that
-c_feta = .3333333333
-c_cathode = 0.3333333333
-c_curtains = 0.3333333333
 
 epochs_NN =  100
 batch_size_NN = 128
@@ -114,8 +114,9 @@ def analyze_band_transform_with_weights(dir_to_save, idd,
     nn_train_labs = np.concatenate((torch.zeros((train_samp_1.shape[0], 1)), torch.ones((train_samp_2.shape[0],1))))
     nn_train_weights =  np.concatenate((weights_samp_1, weights_samp_2))
     
-    print(nn_train_labs.shape, nn_train_weights.shape)
-
+    print(f"Sample 1 shape: {train_samp_1.shape}")
+    print(f"Sample 2 shape: {train_samp_2.shape}")
+          
     # get CLASS weights
     class_weights = class_weight.compute_class_weight('balanced', np.unique(nn_train_labs.reshape(-1)), nn_train_labs.reshape(-1))
     class_weights = dict(enumerate(class_weights))
@@ -308,26 +309,46 @@ EVAL
 """
 """
 
-# for the combined samples
-num_feta = int(c_feta*num_synth_samples)
-num_cathode = int(c_cathode*num_synth_samples)
-num_curtains = int(c_curtains*num_synth_samples)
+
     
 # load in the data samples
 feta_samples = np.load(f"{scaled_data_dir}/nsig_injected_{num_signal_to_inject}/feta.npy")
 cathode_samples = np.load(f"{scaled_data_dir}/nsig_injected_{num_signal_to_inject}/cathode.npy")
 curtains_samples = np.load(f"{scaled_data_dir}/nsig_injected_{num_signal_to_inject}/curtains.npy")
 salad_samples = np.load(f"{scaled_data_dir}/nsig_injected_{num_signal_to_inject}/salad.npy")
-salad_weights = np.load(f"{scaled_data_dir}/nsig_injected_{num_signal_to_inject}/salad_weights.npy")
-blank_weights = np.ones((dat_samples_train.shape[0], 1))
+salad_weights = np.load(f"{scaled_data_dir}/nsig_injected_{num_signal_to_inject}/salad_weights.npy").reshape(-1, 1)
+
+
+blank_weights_samples = np.ones((num_samples, 1))
+blank_weights_data = np.ones((dat_samples_train.shape[0], 1))
 
 
 for seed_NN in range(index_start, index_stop, 1):
+        
+    # select samples
+    indices_feta = np.random.choice(len(feta_samples), size = num_samples)
+    selected_feta = feta_samples[indices_feta]
+    
+    indices_cathode = np.random.choice(len(cathode_samples), size = num_samples)
+    selected_cathode = cathode_samples[indices_cathode]
+    
+    indices_curtains = np.random.choice(len(curtains_samples), size = num_samples)
+    selected_curtains = curtains_samples[indices_curtains]
+    
+    indices_salad = np.random.choice(len(salad_samples), size = num_samples)
+    selected_salad = salad_samples[indices_salad]
+    selected_salad_weights = salad_weights[indices_salad]
+
+    # concatenate 
+    # shuffling *should* happen int the dataloader
+    synth_samples = np.concatenate((selected_feta, selected_cathode, selected_curtains, selected_salad))
+    synth_weights = np.concatenate((blank_weights_samples, blank_weights_samples, blank_weights_samples, selected_salad_weights))
+
 
     if eval_feta:
         print(f"Evaluating feta (seed {seed_NN} of {index_stop})...")
-     
-        roc = analyze_band_transform(results_dir, f"feta_{seed_NN}", feta_samples[:,:-1], dat_samples_train[:,:-1], blank_weights, blank_weights STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
+        
+        roc = analyze_band_transform_with_weights(results_dir, f"feta_{seed_NN}", selected_feta[:,:-1], dat_samples_train[:,:-1], blank_weights_samples, blank_weights_data, STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
         results_file = f"{results_dir}/feta_{seed_NN}.txt"
 
         with open(results_file, "w") as results:
@@ -342,7 +363,7 @@ for seed_NN in range(index_start, index_stop, 1):
         
         print(f"Evaluating cathode (seed {seed_NN} of {index_stop})...")
         
-        roc = analyze_band_transform(results_dir, f"cathode_{seed_NN}", cathode_samples[:,:-1], dat_samples_train[:,:-1], blank_weights, blank_weights, STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
+        roc = analyze_band_transform_with_weights(results_dir, f"cathode_{seed_NN}", selected_cathode[:,:-1], dat_samples_train[:,:-1], blank_weights_samples, blank_weights_data, STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
         results_file = f"{results_dir}/cathode_{seed_NN}.txt"
 
         with open(results_file, "w") as results:
@@ -357,7 +378,7 @@ for seed_NN in range(index_start, index_stop, 1):
     if eval_curtains:
 
         print(f"Evaluating curtains (seed {seed_NN} of {index_stop})...")
-        roc = analyze_band_transform(results_dir, f"curtains_{seed_NN}", curtains_samples[:,:-1], dat_samples_train[:,:-1], blank_weights, blank_weights, STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
+        roc = analyze_band_transform_with_weights(results_dir, f"curtains_{seed_NN}", selected_curtains[:,:-1], dat_samples_train[:,:-1], blank_weights_samples, blank_weights_data, STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
         
   
         results_file = f"{results_dir}/curtains_{seed_NN}.txt"
@@ -370,15 +391,14 @@ for seed_NN in range(index_start, index_stop, 1):
         print(5*"*")
         print()
         
-        
 
     if eval_salad:
 
         print(f"Evaluating salad (seed {seed_NN} of {index_stop})...")
-        roc = analyze_band_transform(results_dir, f"curtains_{seed_NN}", salad_samples[:,:-1], dat_samples_train[:,:-1], salad_weights, blank_weights, STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
+        roc = analyze_band_transform_with_weights(results_dir, f"salad_{seed_NN}", selected_salad[:,:-1], dat_samples_train[:,:-1], selected_salad_weights, blank_weights_data, STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
         
-  
-        results_file = f"{results_dir}/curtains_{seed_NN}.txt"
+        
+        results_file = f"{results_dir}/salad_{seed_NN}.txt"
 
         with open(results_file, "w") as results:
             results.write(f"Discrim. power for STS bkg from STS sig in band SR: {roc}\n")
@@ -393,21 +413,7 @@ for seed_NN in range(index_start, index_stop, 1):
 
         print(f"Evaluating combined samples (seed {seed_NN} of {index_stop})...")
 
-        # select samples
-        indices_feta = np.random.choice(len(feta_samples), size = num_feta)
-        selected_feta = feta_samples[indices_feta]
-        indices_cathode = np.random.choice(len(cathode_samples), size = num_cathode)
-        selected_cathode = cathode_samples[indices_cathode]
-        indices_curtains = np.random.choice(len(curtains_samples), size = num_curtains)
-        selected_curtains = curtains_samples[indices_curtains]
-
-        # concatenate and shuffle
-        synth_samples = np.concatenate((selected_feta, selected_cathode, selected_curtains))
-        np.random.shuffle(synth_samples)
-        
-        print(synth_samples.shape)
-
-        roc = analyze_band_transform(results_dir, f"combined_{seed_NN}", synth_samples[:,:-1], dat_samples_train[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
+        roc = analyze_band_transform_with_weights(results_dir, f"combined_{seed_NN}", synth_samples[:,:-1], dat_samples_train[:,:-1], synth_weights, blank_weights_data, STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
 
         results_file = f"{results_dir}/combined_{seed_NN}.txt"
 
@@ -436,8 +442,6 @@ if eval_full_sup:
     results_dir = f"/global/home/users/rrmastandrea/NF_results_2/nsig_inj0_seed1/"
     os.makedirs(results_dir, exist_ok=True)
     
- 
-    
     
     # load in the non STS labeled samples
     # load in the reverse rescales
@@ -456,7 +460,7 @@ if eval_full_sup:
         print(f"Evaluating full sup (seed {seed_NN} of {index_stop})...")
 
 
-        roc = analyze_band_transform(results_dir, f"full_sup_{seed_NN}",true_sup_bkg[:,:-1], true_sup_sig[:,:-1], blank_weights, blank_weights, STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
+        roc = analyze_band_transform_with_weights(results_dir, f"full_sup_{seed_NN}",true_sup_bkg[:,:-1], true_sup_sig[:,:-1], np.ones((true_sup_bkg.shape[0], 1)), np.ones((true_sup_sig.shape[0], 1)), STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
         results_file = f"{results_dir}/full_sup_{seed_NN}.txt"
 
         with open(results_file, "w") as results:
