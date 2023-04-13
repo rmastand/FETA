@@ -43,7 +43,7 @@ seed = 1
 n_features = 5
 
 
-num_signal_to_inject = 3500
+num_signal_to_inject = 1500
 index_start = 0
 index_stop = 20
 

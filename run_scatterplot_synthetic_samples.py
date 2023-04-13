@@ -28,7 +28,7 @@ COMPUTING PARAMETERS
 """
 """
 
-os.environ["CUDA_VISIBLE_DEVICES"]="3"
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 device = cuda.get_current_device()
 device.reset()
 
@@ -51,7 +51,7 @@ RUN PARAMETERS
 seed = 1
 n_features = 5
 
-num_signal_to_inject = 10000
+num_signal_to_inject = 1000
 index_start = 0
 index_stop = 5
 
@@ -60,24 +60,17 @@ eval_feta = True
 eval_cathode = True
 eval_curtains = True
 eval_full_sup = True
+eval_salad = True
 eval_combined = False
 
-# parameters for combined samples
-num_synth_samples = 600000
-# coefficients for mixing
-# recommended to have them sum to 1 but there's no check on that
-c_feta = .33
-c_cathode = 0.33
-c_curtains = 0.33
-
-
+num_samples = 400000
 epochs_NN =  100
 batch_size_NN = 256
 lr_NN = 0.001
 patience_NN = 5
 
 
-def analyze_transform_for_scatter_kfold(idd, train_samp_1, train_samp_2, test_samp_1, test_samp_2, n_features, n_epochs, batch_size, lr, patience, device, early_stop = True, visualize = True, seed = None, k_folds = 5):
+def analyze_transform_for_scatter_kfold(idd, train_samp_1, train_samp_2, weights_samp_1, weights_samp_2, test_samp_1, test_samp_2, n_features, n_epochs, batch_size, lr, patience, device, early_stop = True, visualize = True, seed = None, k_folds = 5):
     
     if seed is not None:
         #print(f"Using seed {seed}...")
@@ -89,6 +82,7 @@ def analyze_transform_for_scatter_kfold(idd, train_samp_1, train_samp_2, test_sa
     # make the input and output data
     X_train = np.concatenate((train_samp_1, train_samp_2))
     y_train = np.concatenate((torch.zeros((train_samp_1.shape[0], 1)), torch.ones((train_samp_2.shape[0],1))))    
+    w_train = np.concatenate((weights_samp_1, weights_samp_2))
     
     # get weights in case we're oversampling
     class_weights = class_weight.compute_class_weight('balanced', np.unique(y_train.reshape(-1)), y_train.reshape(-1))
@@ -104,6 +98,7 @@ def analyze_transform_for_scatter_kfold(idd, train_samp_1, train_samp_2, test_sa
     X_train = np_to_torch(X_train, device)
     X_test = np_to_torch(X_test, device)
     y_train = np_to_torch(y_train, device)
+    w_train = np_to_torch(w_train, device)
     
     # Define the K-fold Cross Validator
     kfold = KFold(n_splits=k_folds, shuffle=True)
@@ -119,17 +114,16 @@ def analyze_transform_for_scatter_kfold(idd, train_samp_1, train_samp_2, test_sa
 
         X_train_fold = X_train[train_ids]
         y_train_fold = y_train[train_ids]
+        w_train_fold = w_train[train_ids] 
         
         X_val_fold = X_train[val_ids]
         y_val_fold = y_train[val_ids]
-        
-        train_set = torch.utils.data.TensorDataset(X_train_fold, y_train_fold)
-        val_set = torch.utils.data.TensorDataset(X_val_fold, y_val_fold)
+        w_val_fold = w_train[val_ids] 
+                
+        train_set = torch.utils.data.TensorDataset(X_train_fold, y_train_fold, w_train_fold)
+        val_set = torch.utils.data.TensorDataset(X_val_fold, y_val_fold, w_val_fold)
         train_loader = torch.utils.data.DataLoader(train_set, batch_size = batch_size, shuffle = True)
         val_loader = torch.utils.data.DataLoader(val_set, batch_size = batch_size, shuffle = True)
-        
-        #print("fold test data, labels shape:", X_train_fold.shape, y_train_fold.shape)
-        #print("fold val data, labels  shape:", X_val_fold.shape, y_val_fold.shape)
         
         # initialze the network
         dense_net = NeuralNet(input_shape = n_features)
@@ -149,16 +143,18 @@ def analyze_transform_for_scatter_kfold(idd, train_samp_1, train_samp_2, test_sa
         for epoch in tqdm(range(n_epochs)):
             losses_batch_per_e = []
             # batching    
-            for batch_index, (batch_data, batch_labels) in enumerate(train_loader):
+            for batch_index, (batch_data, batch_labels, batch_salad_weights) in enumerate(train_loader):
 
                 # calculate the loss, backpropagate
                 optimizer.zero_grad()
 
                 # get the weights
-                batch_weights = (torch.ones(batch_labels.shape, device=device)
+                batch_weights_class = (torch.ones(batch_labels.shape, device=device)
                             - batch_labels)*class_weights[0] \
                             + batch_labels*class_weights[1]
-
+                
+                batch_weights = batch_weights_class*batch_salad_weights
+                
                 loss = criterion(dense_net(batch_data), batch_labels, weight = batch_weights)
 
                 loss.backward()
@@ -174,14 +170,16 @@ def analyze_transform_for_scatter_kfold(idd, train_samp_1, train_samp_2, test_sa
             with torch.no_grad():
                 val_losses_batch_per_e = []
                 
-                for batch_index, (batch_data, batch_labels) in enumerate(val_loader):
+                for batch_index, (batch_data, batch_labels, batch_salad_weights) in enumerate(val_loader):
                     # calculate the loss, backpropagate
                     optimizer.zero_grad()
 
                     # get the weights
-                    batch_weights = (torch.ones(batch_labels.shape, device=device)
+                    batch_weights_class = (torch.ones(batch_labels.shape, device=device)
                                 - batch_labels)*class_weights[0] \
                                 + batch_labels*class_weights[1]
+                    
+                    batch_weights = batch_weights_class*batch_salad_weights
 
                     val_loss = criterion(dense_net(batch_data), batch_labels, weight = batch_weights) 
                     val_losses_batch_per_e.append(val_loss.detach().cpu().numpy())
@@ -270,24 +268,38 @@ EVAL
 """
 
 
-# for the combined samples
-num_feta = int(c_feta*num_synth_samples)
-num_cathode = int(c_cathode*num_synth_samples)
-num_curtains = int(c_curtains*num_synth_samples)
     
 # load in the data samples
 feta_samples = np.load(f"{scaled_data_dir}/nsig_injected_{num_signal_to_inject}/feta.npy")
 cathode_samples = np.load(f"{scaled_data_dir}/nsig_injected_{num_signal_to_inject}/cathode.npy")
 curtains_samples = np.load(f"{scaled_data_dir}/nsig_injected_{num_signal_to_inject}/curtains.npy")
-print(feta_samples.shape, cathode_samples.shape, curtains_samples.shape)
+salad_samples = np.load(f"{scaled_data_dir}/nsig_injected_{num_signal_to_inject}/salad.npy")
+salad_weights = np.load(f"{scaled_data_dir}/nsig_injected_{num_signal_to_inject}/salad_weights.npy").reshape(-1, 1)
+
+blank_weights_samples = np.ones((num_samples, 1))
+blank_weights_data = np.ones((dat_samples_train.shape[0], 1))
 
 for seed_NN in range(index_start, index_stop, 1):
+    
+    # select samples
+    indices_feta = np.random.choice(len(feta_samples), size = num_samples)
+    selected_feta = feta_samples[indices_feta]
+    
+    indices_cathode = np.random.choice(len(cathode_samples), size = num_samples)
+    selected_cathode = cathode_samples[indices_cathode]
+    
+    indices_curtains = np.random.choice(len(curtains_samples), size = num_samples)
+    selected_curtains = curtains_samples[indices_curtains]
+    
+    indices_salad = np.random.choice(len(salad_samples), size = num_samples)
+    selected_salad = salad_samples[indices_salad]
+    selected_salad_weights = salad_weights[indices_salad]
 
     if eval_feta:
 
             print(f"Evaluating feta (seed {seed_NN} of {index_stop})...")
 
-            feta_results = analyze_transform_for_scatter_kfold(f"feta_seedNN{seed_NN}_nsig{num_signal_to_inject}", feta_samples[:,:-1], dat_samples_train[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
+            feta_results = analyze_transform_for_scatter_kfold(f"feta_seedNN{seed_NN}_nsig{num_signal_to_inject}", selected_feta[:,:-1], dat_samples_train[:,:-1], blank_weights_samples, blank_weights_data, STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
             np.save(f"{scatterplot_dir}/feta_results_seedNN{seed_NN}_nsig{num_signal_to_inject}", feta_results)
 
 
@@ -295,7 +307,7 @@ for seed_NN in range(index_start, index_stop, 1):
 
             print(f"Evaluating cathode (seed {seed_NN} of {index_stop})...")
 
-            cathode_results = analyze_transform_for_scatter_kfold(f"cathode_seedNN{seed_NN}_nsig{num_signal_to_inject}", cathode_samples[:,:-1], dat_samples_train[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
+            cathode_results = analyze_transform_for_scatter_kfold(f"cathode_seedNN{seed_NN}_nsig{num_signal_to_inject}", selected_cathode[:,:-1], dat_samples_train[:,:-1], blank_weights_samples, blank_weights_data, STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
             np.save(f"{scatterplot_dir}/cathode_results_seedNN{seed_NN}_nsig{num_signal_to_inject}", cathode_results)
 
 
@@ -303,8 +315,15 @@ for seed_NN in range(index_start, index_stop, 1):
 
             print(f"Evaluating curtains (seed {seed_NN} of {index_stop})...")
 
-            curtains_results = analyze_transform_for_scatter_kfold(f"curtains_seedNN{seed_NN}_nsig{num_signal_to_inject}", curtains_samples[:,:-1], dat_samples_train[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
+            curtains_results = analyze_transform_for_scatter_kfold(f"curtains_seedNN{seed_NN}_nsig{num_signal_to_inject}", selected_curtains[:,:-1], dat_samples_train[:,:-1], blank_weights_samples, blank_weights_data, STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
             np.save(f"{scatterplot_dir}/curtains_results_seedNN{seed_NN}_nsig{num_signal_to_inject}", curtains_results)  
+            
+    if eval_salad:
+
+            print(f"Evaluating salad (seed {seed_NN} of {index_stop})...")
+            
+            salad_results = analyze_transform_for_scatter_kfold(f"salad_seedNN{seed_NN}_nsig{num_signal_to_inject}", selected_salad[:,:-1], dat_samples_train[:,:-1], selected_salad_weights, blank_weights_data, STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
+            np.save(f"{scatterplot_dir}/salad_results_seedNN{seed_NN}_nsig{num_signal_to_inject}", curtains_results)  
             
             
     if eval_combined:
@@ -354,7 +373,7 @@ if eval_full_sup:
     
         print(f"Evaluating full sup (seed {seed_NN} of {index_stop})...")
 
-        full_sup_results = analyze_transform_for_scatter_kfold(f"full_sup_seedNN{seed_NN}",true_sup_bkg[:,:-1], true_sup_sig[:,:-1], STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
+        full_sup_results = analyze_transform_for_scatter_kfold(f"full_sup_seedNN{seed_NN}",true_sup_bkg[:,:-1], true_sup_sig[:,:-1], np.ones((true_sup_bkg.shape[0], 1)), np.ones((true_sup_sig.shape[0], 1)), STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
         np.save(f"{scatterplot_dir}/full_sup_results_seedNN{seed_NN}", full_sup_results)
 
 print("Done!")
