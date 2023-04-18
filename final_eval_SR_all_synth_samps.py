@@ -9,13 +9,15 @@ import os
 from numba import cuda 
 import argparse
 
-from helpers.composite_helpers import *
+from helpers.synthesis_plots import *
 
 # Initialize parser
 parser = argparse.ArgumentParser()
  
 # Adding optional argument
 parser.add_argument("-n", "--num_signal_to_inject", help = "num signal to inject")
+parser.add_argument("-c", "--cuda_slot", help = "CUDA slot")
+
  
 # Read arguments from command line
 args = parser.parse_args()
@@ -30,8 +32,7 @@ COMPUTING PARAMETERS
 """
 
 
-
-os.environ["CUDA_VISIBLE_DEVICES"]= "0"
+os.environ["CUDA_VISIBLE_DEVICES"]= args.cuda_slot
 device = cuda.get_current_device()
 device.reset()
 
@@ -58,16 +59,15 @@ index_start = 0
 index_stop = 20
 
 eval_feta = True
-eval_feta_nonsamp = False # not oversampled
 eval_cathode = True
 eval_curtains = True
 eval_salad = True
-eval_full_sup = True
-eval_combined = False
+eval_full_sup = False
+eval_combined = True
 
 
 # parameters for combined samples
-num_samples = 400000
+target_total_events = 10000
 # coefficients for mixing
 # recommended to have them sum to 1 but there's no check on that
 
@@ -88,7 +88,11 @@ bands_dict = {"ob1": [2500, 2900],
 
 binning_scheme = np.linspace(-3.5, 3.5, 50)
 
-results_dir = f"/clusterfs/ml4hep/rrmastandrea/NF_results/nsig_inj{num_signal_to_inject}_seed{seed}/"
+feta_dir = f"/clusterfs/ml4hep/rrmastandrea/NF_results_SSS/"
+#feta_dir = "/global/ml4hep/spss/rrmastandrea/NF_results_FETA/"
+
+results_dir = os.path.join(feta_dir, f"nsig_inj{args.num_signal_to_inject}_seed{seed}")
+
 os.makedirs(results_dir, exist_ok=True)
 scaled_data_dir = "/global/home/users/rrmastandrea/scaled_data/"
 
@@ -109,7 +113,7 @@ STS DATA
 STS_bkg_dataset = np.load(f"{scaled_data_dir}/STS_bkg.npy")
 STS_sig_dataset = np.load(f"{scaled_data_dir}/STS_sig.npy")
 
-dat_samples_train = np.load(f"{scaled_data_dir}/nsig_injected_{num_signal_to_inject}/data.npy")
+dat_samples_train = np.load(f"{scaled_data_dir}/nsig_injected_{args.num_signal_to_inject}/data.npy")
 
 
 """
@@ -120,46 +124,44 @@ EVAL
 """
 """
 
-
     
 # load in the data samples
-#feta_samples = np.load(f"{scaled_data_dir}/nsig_injected_{num_signal_to_inject}/feta.npy")
-cathode_samples = np.load(f"{scaled_data_dir}/nsig_injected_{num_signal_to_inject}/cathode.npy")
-curtains_samples = np.load(f"{scaled_data_dir}/nsig_injected_{num_signal_to_inject}/curtains.npy")
-salad_samples = np.load(f"{scaled_data_dir}/nsig_injected_{num_signal_to_inject}/salad.npy")
-salad_weights = np.load(f"{scaled_data_dir}/nsig_injected_{num_signal_to_inject}/salad_weights.npy").reshape(-1, 1)
+feta_samples = np.load(f"{scaled_data_dir}/nsig_injected_{args.num_signal_to_inject}/feta_o4.npy")
+cathode_samples = np.load(f"{scaled_data_dir}/nsig_injected_{args.num_signal_to_inject}/cathode.npy")
+curtains_samples = np.load(f"{scaled_data_dir}/nsig_injected_{args.num_signal_to_inject}/curtains.npy")
+salad_samples = np.load(f"{scaled_data_dir}/nsig_injected_{args.num_signal_to_inject}/salad.npy")
+salad_weights = np.load(f"{scaled_data_dir}/nsig_injected_{args.num_signal_to_inject}/salad_weights.npy").reshape(-1, 1)
+
+num_synth_events = feta_samples.shape[0] + cathode_samples.shape[0] + curtains_samples.shape[0] + salad_samples.shape[0] 
 
 
-blank_weights_samples = np.ones((num_samples, 1))
+
 blank_weights_data = np.ones((dat_samples_train.shape[0], 1))
 
 
 for seed_NN in range(index_start, index_stop, 1):
+    
+    np.random.seed(seed_NN)
         
-    # select samples
-    indices_feta = np.random.choice(len(feta_samples), size = num_samples)
-    selected_feta = feta_samples[indices_feta]
-    
-    indices_cathode = np.random.choice(len(cathode_samples), size = num_samples)
-    selected_cathode = cathode_samples[indices_cathode]
-    
-    indices_curtains = np.random.choice(len(curtains_samples), size = num_samples)
-    selected_curtains = curtains_samples[indices_curtains]
-    
-    indices_salad = np.random.choice(len(salad_samples), size = num_samples)
-    selected_salad = salad_samples[indices_salad]
-    selected_salad_weights = salad_weights[indices_salad]
+    # select samples for the combined samples
+    feta_selected, feta_weights = select_n_events(feta_samples, target_total_events, num_synth_events)
+    cathode_selected, cathode_weights = select_n_events(cathode_samples, target_total_events, num_synth_events)
+    curtains_selected, curtains_weights = select_n_events(curtains_samples, target_total_events, num_synth_events)
+    salad_selected, salad_weights = select_n_events(salad_samples, target_total_events, num_synth_events, weights = salad_weights)
 
     # concatenate 
     # shuffling *should* happen int the dataloader
-    synth_samples = np.concatenate((selected_feta, selected_cathode, selected_curtains, selected_salad))
-    synth_weights = np.concatenate((blank_weights_samples, blank_weights_samples, blank_weights_samples, selected_salad_weights))
+    synth_samples = np.concatenate((feta_selected, cathode_selected, curtains_selected, salad_selected))
+    synth_weights = np.concatenate((feta_weights, cathode_weights, curtains_weights, salad_weights))
+    
+    print(synth_samples.shape, synth_weights.shape)
+
 
 
     if eval_feta:
         print(f"Evaluating feta (seed {seed_NN} of {index_stop})...")
         
-        roc = discriminate_datasets_weighted(results_dir, f"feta_{seed_NN}", selected_feta[:,:-1], dat_samples_train[:,:-1], blank_weights_samples, blank_weights_data, STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
+        roc = discriminate_datasets_weighted(results_dir, f"feta_{seed_NN}", feta_samples[:,:-1], dat_samples_train[:,:-1], np.ones((feta_samples.shape[0], 1)), blank_weights_data, STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
         results_file = f"{results_dir}/feta_{seed_NN}.txt"
 
         with open(results_file, "w") as results:
@@ -174,7 +176,7 @@ for seed_NN in range(index_start, index_stop, 1):
         
         print(f"Evaluating cathode (seed {seed_NN} of {index_stop})...")
         
-        roc = discriminate_datasets_weighted(results_dir, f"cathode_{seed_NN}", selected_cathode[:,:-1], dat_samples_train[:,:-1], blank_weights_samples, blank_weights_data, STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
+        roc = discriminate_datasets_weighted(results_dir, f"cathode_{seed_NN}", cathode_samples[:,:-1], dat_samples_train[:,:-1], np.ones((cathode_samples.shape[0], 1)), blank_weights_data, STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
         results_file = f"{results_dir}/cathode_{seed_NN}.txt"
 
         with open(results_file, "w") as results:
@@ -189,7 +191,7 @@ for seed_NN in range(index_start, index_stop, 1):
     if eval_curtains:
 
         print(f"Evaluating curtains (seed {seed_NN} of {index_stop})...")
-        roc = discriminate_datasets_weighted(results_dir, f"curtains_{seed_NN}", selected_curtains[:,:-1], dat_samples_train[:,:-1], blank_weights_samples, blank_weights_data, STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
+        roc = discriminate_datasets_weighted(results_dir, f"curtains_{seed_NN}", curtains_samples[:,:-1], dat_samples_train[:,:-1], np.ones((curtains_samples.shape[0], 1)), blank_weights_data, STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
         
   
         results_file = f"{results_dir}/curtains_{seed_NN}.txt"
@@ -206,7 +208,7 @@ for seed_NN in range(index_start, index_stop, 1):
     if eval_salad:
 
         print(f"Evaluating salad (seed {seed_NN} of {index_stop})...")
-        roc = discriminate_datasets_weighted(results_dir, f"salad_{seed_NN}", selected_salad[:,:-1], dat_samples_train[:,:-1], selected_salad_weights, blank_weights_data, STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
+        roc = discriminate_datasets_weighted(results_dir, f"salad_{seed_NN}", salad_samples[:,:-1], dat_samples_train[:,:-1], salad_weights, blank_weights_data, STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
         
         
         results_file = f"{results_dir}/salad_{seed_NN}.txt"
@@ -238,8 +240,6 @@ for seed_NN in range(index_start, index_stop, 1):
 
 
 
-
-
 """
 "
 "
@@ -250,9 +250,7 @@ SUPERVISED CLASSIFIER
 
 if eval_full_sup:
     
-    results_dir = f"/global/home/users/rrmastandrea/NF_results_2/nsig_inj0_seed1/"
-    os.makedirs(results_dir, exist_ok=True)
-    
+    results_dir = os.path.join(feta_dir, f"nsig_inj0_seed{seed}")
     
     # load in the non STS labeled samples
     # load in the reverse rescales

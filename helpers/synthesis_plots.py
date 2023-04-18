@@ -1,4 +1,5 @@
 import numpy as np
+from helpers.evaluation import *
 
 
 def get_sic_rejection(idd, seed, n, results_dir):
@@ -28,6 +29,29 @@ def get_mean_std(loc_list):
     std = np.nanstd(loc_list, axis = 0)
     
     return mean, std
+
+
+def select_n_events(samples, n_target_total, n_total_avail, weights = None):
+    
+    n_to_select = int(n_target_total*len(samples)/n_total_avail)
+    
+    # each of the 4 samples should have 1/4 of the total weight
+    weight = float(0.25*n_target_total/n_to_select)
+    indices_to_select = np.random.choice(len(samples), size = n_to_select)
+    selected_events = samples[indices_to_select]
+    
+    if weights is not None:
+        selected_weights = weights[indices_to_select]
+        weights_to_use = selected_weights*weight
+        return selected_events, weights_to_use
+
+    else:
+        # create an array of weights
+        selected_weights = np.ones((n_to_select, 1))
+        weights_to_use = selected_weights*weight
+        return selected_events, weights_to_use
+    
+
 
 
 
@@ -232,7 +256,7 @@ def discriminate_datasets_weighted(dir_to_save, idd,
     return auc
 
 
-def discriminate_for_scatter_kfold(idd, train_samp_1, train_samp_2, weights_samp_1, weights_samp_2, test_samp_1, test_samp_2, n_features, n_epochs, batch_size, lr, patience, device, early_stop = True, visualize = True, seed = None, k_folds = 5):
+def discriminate_for_scatter_kfold(idd, scatterplot_dir, train_samp_1, train_samp_2, weights_samp_1, weights_samp_2, test_samp_1, test_samp_2, n_features, n_epochs, batch_size, lr, patience, device, early_stop = True, visualize = True, seed = None, k_folds = 5):
     
     if seed is not None:
         #print(f"Using seed {seed}...")
