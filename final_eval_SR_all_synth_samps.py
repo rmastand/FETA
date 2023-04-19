@@ -58,21 +58,21 @@ n_features = 5
 index_start = 0
 index_stop = 20
 
-eval_feta = True
-eval_cathode = True
-eval_curtains = True
-eval_salad = True
+eval_feta = False
+eval_cathode = False
+eval_curtains = False
+eval_salad = False
 eval_full_sup = False
 eval_combined = True
 
 
 # parameters for combined samples
-target_total_events = 10000
+target_total_events = 1000000
 # coefficients for mixing
 # recommended to have them sum to 1 but there's no check on that
 
 epochs_NN =  100
-batch_size_NN = 128
+batch_size_NN = 512
 lr_NN = 0.001
 patience_NN = 10
 
@@ -130,7 +130,7 @@ feta_samples = np.load(f"{scaled_data_dir}/nsig_injected_{args.num_signal_to_inj
 cathode_samples = np.load(f"{scaled_data_dir}/nsig_injected_{args.num_signal_to_inject}/cathode.npy")
 curtains_samples = np.load(f"{scaled_data_dir}/nsig_injected_{args.num_signal_to_inject}/curtains.npy")
 salad_samples = np.load(f"{scaled_data_dir}/nsig_injected_{args.num_signal_to_inject}/salad.npy")
-salad_weights = np.load(f"{scaled_data_dir}/nsig_injected_{args.num_signal_to_inject}/salad_weights.npy").reshape(-1, 1)
+base_salad_weights = np.load(f"{scaled_data_dir}/nsig_injected_{args.num_signal_to_inject}/salad_weights.npy").reshape(-1, 1)
 
 num_synth_events = feta_samples.shape[0] + cathode_samples.shape[0] + curtains_samples.shape[0] + salad_samples.shape[0] 
 
@@ -142,20 +142,6 @@ blank_weights_data = np.ones((dat_samples_train.shape[0], 1))
 for seed_NN in range(index_start, index_stop, 1):
     
     np.random.seed(seed_NN)
-        
-    # select samples for the combined samples
-    feta_selected, feta_weights = select_n_events(feta_samples, target_total_events, num_synth_events)
-    cathode_selected, cathode_weights = select_n_events(cathode_samples, target_total_events, num_synth_events)
-    curtains_selected, curtains_weights = select_n_events(curtains_samples, target_total_events, num_synth_events)
-    salad_selected, salad_weights = select_n_events(salad_samples, target_total_events, num_synth_events, weights = salad_weights)
-
-    # concatenate 
-    # shuffling *should* happen int the dataloader
-    synth_samples = np.concatenate((feta_selected, cathode_selected, curtains_selected, salad_selected))
-    synth_weights = np.concatenate((feta_weights, cathode_weights, curtains_weights, salad_weights))
-    
-    print(synth_samples.shape, synth_weights.shape)
-
 
 
     if eval_feta:
@@ -208,7 +194,7 @@ for seed_NN in range(index_start, index_stop, 1):
     if eval_salad:
 
         print(f"Evaluating salad (seed {seed_NN} of {index_stop})...")
-        roc = discriminate_datasets_weighted(results_dir, f"salad_{seed_NN}", salad_samples[:,:-1], dat_samples_train[:,:-1], salad_weights, blank_weights_data, STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
+        roc = discriminate_datasets_weighted(results_dir, f"salad_{seed_NN}", salad_samples[:,:-1], dat_samples_train[:,:-1], base_salad_weights, blank_weights_data, STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
         
         
         results_file = f"{results_dir}/salad_{seed_NN}.txt"
@@ -225,6 +211,20 @@ for seed_NN in range(index_start, index_stop, 1):
     if eval_combined:
 
         print(f"Evaluating combined samples (seed {seed_NN} of {index_stop})...")
+        
+         # select samples for the combined samples
+        feta_selected, feta_weights = select_n_events(feta_samples, target_total_events, num_synth_events)
+        cathode_selected, cathode_weights = select_n_events(cathode_samples, target_total_events, num_synth_events)
+        curtains_selected, curtains_weights = select_n_events(curtains_samples, target_total_events, num_synth_events)
+        salad_selected, salad_weights = select_n_events(salad_samples, target_total_events, num_synth_events, weights = base_salad_weights)
+
+        # concatenate 
+        # shuffling *should* happen int the dataloader
+        synth_samples = np.concatenate((feta_selected, cathode_selected, curtains_selected, salad_selected))
+        synth_weights = np.concatenate((feta_weights, cathode_weights, curtains_weights, salad_weights))
+    
+        print(f"Using {synth_samples.shape[0]} events.")
+
 
         roc = discriminate_datasets_weighted(results_dir, f"combined_{seed_NN}", synth_samples[:,:-1], dat_samples_train[:,:-1], synth_weights, blank_weights_data, STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN)
 

@@ -70,12 +70,12 @@ eval_cathode = True
 eval_curtains = True
 eval_full_sup = False
 eval_salad = True
-eval_combined = True
+eval_combined = False
 
 target_total_events = 10000
 
 epochs_NN =  100
-batch_size_NN = 256
+batch_size_NN = 512
 lr_NN = 0.001
 patience_NN = 5
 
@@ -123,7 +123,7 @@ feta_samples = np.load(f"{scaled_data_dir}/nsig_injected_{args.num_signal_to_inj
 cathode_samples = np.load(f"{scaled_data_dir}/nsig_injected_{args.num_signal_to_inject}/cathode.npy")
 curtains_samples = np.load(f"{scaled_data_dir}/nsig_injected_{args.num_signal_to_inject}/curtains.npy")
 salad_samples = np.load(f"{scaled_data_dir}/nsig_injected_{args.num_signal_to_inject}/salad.npy")
-salad_weights = np.load(f"{scaled_data_dir}/nsig_injected_{args.num_signal_to_inject}/salad_weights.npy").reshape(-1, 1)
+base_salad_weights = np.load(f"{scaled_data_dir}/nsig_injected_{args.num_signal_to_inject}/salad_weights.npy").reshape(-1, 1)
 
 num_synth_events = feta_samples.shape[0] + cathode_samples.shape[0] + curtains_samples.shape[0] + salad_samples.shape[0] 
 
@@ -133,19 +133,6 @@ for seed_NN in range(index_start, index_stop, 1):
     
     np.random.seed(seed_NN)
     
-    # select samples for the combined samples
-    feta_selected, feta_weights = select_n_events(feta_samples, target_total_events, num_synth_events)
-    cathode_selected, cathode_weights = select_n_events(cathode_samples, target_total_events, num_synth_events)
-    curtains_selected, curtains_weights = select_n_events(curtains_samples, target_total_events, num_synth_events)
-    salad_selected, salad_weights = select_n_events(salad_samples, target_total_events, num_synth_events, weights = salad_weights)
-
-    # concatenate 
-    # shuffling *should* happen int the dataloader
-    synth_samples = np.concatenate((feta_selected, cathode_selected, curtains_selected, salad_selected))
-    synth_weights = np.concatenate((feta_weights, cathode_weights, curtains_weights, salad_weights))
-    
-    print(synth_samples.shape, synth_weights.shape)
-
     
     
     if eval_feta:
@@ -175,13 +162,28 @@ for seed_NN in range(index_start, index_stop, 1):
 
             print(f"Evaluating salad (seed {seed_NN} of {index_stop})...")
             
-            salad_results = discriminate_for_scatter_kfold(f"salad_seedNN{seed_NN}_nsig{args.num_signal_to_inject}", scatterplot_dir, salad_samples[:,:-1], dat_samples_train[:,:-1], salad_weights, blank_weights_data, STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
+            salad_results = discriminate_for_scatter_kfold(f"salad_seedNN{seed_NN}_nsig{args.num_signal_to_inject}", scatterplot_dir, salad_samples[:,:-1], dat_samples_train[:,:-1], base_salad_weights, blank_weights_data, STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
             np.save(f"{scatterplot_dir}/salad_results_seedNN{seed_NN}_nsig{args.num_signal_to_inject}", salad_results)  
             
             
     if eval_combined:
         
             print(f"Evaluating combined samples (seed {seed_NN} of {index_stop})...")
+            
+            # select samples for the combined samples
+            feta_selected, feta_weights = select_n_events(feta_samples, target_total_events, num_synth_events)
+            cathode_selected, cathode_weights = select_n_events(cathode_samples, target_total_events, num_synth_events)
+            curtains_selected, curtains_weights = select_n_events(curtains_samples, target_total_events, num_synth_events)
+            salad_selected, salad_weights = select_n_events(salad_samples, target_total_events, num_synth_events, weights = base_salad_weights)
+
+            # concatenate 
+            # shuffling *should* happen int the dataloader
+            synth_samples = np.concatenate((feta_selected, cathode_selected, curtains_selected, salad_selected))
+            synth_weights = np.concatenate((feta_weights, cathode_weights, curtains_weights, salad_weights))
+
+            print(f"Using {synth_samples.shape[0]} events.")
+
+    
     
             combined_results = discriminate_for_scatter_kfold(f"combined_seedNN{seed_NN}_nsig{args.num_signal_to_inject}", scatterplot_dir, synth_samples[:,:-1], dat_samples_train[:,:-1], synth_weights, blank_weights_data, STS_bkg_dataset[:,:-1], STS_sig_dataset[:,:-1], n_features, epochs_NN, batch_size_NN, lr_NN, patience_NN, device, visualize = True, seed = seed_NN, early_stop = True)
             np.save(f"{scatterplot_dir}/combined_results_seedNN{seed_NN}_nsig{args.num_signal_to_inject}", combined_results)  
