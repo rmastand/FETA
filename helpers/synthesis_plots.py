@@ -2,7 +2,9 @@ import numpy as np
 from helpers.evaluation import *
 
 
-def get_sic_rejection(idd, seed, n, results_dir):
+def get_sic_rejection(idd, seed, n, results_dir, num_bkg_events = -1):
+    
+    # if num_background_events > 0, then we do a cutoff for maxsic
     
     loc_dir = f"{results_dir}/nsig_inj{n}_seed1/"
     
@@ -15,20 +17,38 @@ def get_sic_rejection(idd, seed, n, results_dir):
     # get the nonzero entries of fpr
     fpr_nonzero_indices = np.where(fpr != 0)
     fpr_nonzero = fpr[fpr_nonzero_indices]
+    
     tpr_nonzero = tpr[fpr_nonzero_indices]
 
     rejection = 1.0 / fpr_nonzero #np.divide(1.0, fpr, out=np.zeros_like(fpr), where=fpr!=0)
     sic = tpr_nonzero / np.sqrt(fpr_nonzero) #np.divide(tpr, np.sqrt(fpr), out=np.zeros_like(tpr), where=np.sqrt(fpr)!=0)
     
-    return tpr_nonzero, sic, rejection
+    if num_bkg_events > 0:
+        eps_bkg = 1.0/((0.4**2)*num_bkg_events)
+        fpr_cutoff_indices = np.where(fpr_nonzero > eps_bkg)
+        maxsic = np.nanmax(sic[fpr_cutoff_indices])
+    else:
+        maxsic = np.nanmax(sic)
+
+
+    
+    return tpr_nonzero, sic, rejection, maxsic
 
 
 def get_mean_std(loc_list):
     
-    mean = np.nanmedian(loc_list, axis = 0)
+    mean = np.nanmean(loc_list, axis = 0)
     std = np.nanstd(loc_list, axis = 0)
     
     return mean, std
+
+def get_med_percentile(loc_list, lower_p = 16, upper_p = 84):
+    
+    med = np.nanmedian(loc_list, axis = 0)
+    lower_p  = np.nanpercentile(loc_list, lower_p, axis = 0)
+    upper_p = np.nanpercentile(loc_list, upper_p, axis = 0)
+    
+    return med, lower_p, upper_p
 
 
 def select_n_events(samples, n_target_total, n_total_avail, weights = None):
@@ -37,7 +57,7 @@ def select_n_events(samples, n_target_total, n_total_avail, weights = None):
     
     # each of the 4 samples should have 1/4 of the total weight
     weight = float(0.25*n_target_total/n_to_select)
-    indices_to_select = np.random.choice(len(samples), size = n_to_select)
+    indices_to_select = np.random.choice(len(samples), size = n_to_select, replace = False)
     selected_events = samples[indices_to_select]
     
     if weights is not None:
@@ -253,7 +273,7 @@ def discriminate_datasets_weighted(dir_to_save, idd,
     if auc < 0.5:
         auc = 1.0 - auc
     
-    return auc
+    return auc, outputs
 
 
 def discriminate_for_scatter_kfold(idd, scatterplot_dir, train_samp_1, train_samp_2, weights_samp_1, weights_samp_2, test_samp_1, test_samp_2, n_features, n_epochs, batch_size, lr, patience, device, early_stop = True, visualize = True, seed = None, k_folds = 5):
@@ -415,4 +435,9 @@ def discriminate_for_scatter_kfold(idd, scatterplot_dir, train_samp_1, train_sam
         outputs = dense_net_eval(X_test).detach().cpu().numpy()
 
     return outputs
+
+
+
+
+
 

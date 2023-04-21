@@ -20,7 +20,7 @@ COMPUTING PARAMETERS
 """
 """
 
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="3"
 
 device = cuda.get_current_device()
 device.reset()
@@ -33,8 +33,8 @@ device = torch.device( "cuda" if torch.cuda.is_available() else "cpu")
 print( "Using device: " + str( device ), flush=True)
 
 seed = 1
-
-oversample = 6
+oversample = 4
+num_signal_to_inject = 1000
 
 
 """
@@ -57,7 +57,7 @@ hyperparameters_dict_eval = {"n_epochs": 100,
 feta_dir = "/global/home/users/rrmastandrea/FETA/"
 
 n_features = 5
-num_signal_to_inject = 2500
+
 dataset_config_string = f"LHCO_{num_signal_to_inject}sig_f/"
 STS_config_sting = f"LHCO_STS/"
 
@@ -147,11 +147,11 @@ transforms_BD_sim = make_masked_AR_flow(num_layers_BD_sim, n_features, num_hidde
 base_dist_sim = StandardNormal(shape=[n_features])
 
 # Create and train
-create_and_train_flow("BDSIM", BD_sim_training_dir, transforms_BD_sim, base_dist_sim, hyperparameters_dict_BD_sim, device, dataset_train_sim, dataset_val_sim, early_stop = False, seed = seed)
+#create_and_train_flow("BDSIM", BD_sim_training_dir, transforms_BD_sim, base_dist_sim, hyperparameters_dict_BD_sim, device, dataset_train_sim, dataset_val_sim, early_stop = False, seed = seed)
 
-make_base_density_samples(hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, BD_sim_samples_dir, device, bands_dict, n_features, npull_dataset_val_sim, binning_scheme, col_minmax)
+#make_base_density_samples(hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, BD_sim_samples_dir, device, bands_dict, n_features, npull_dataset_val_sim, binning_scheme, col_minmax)
 
-evaluate_base_density(BD_sim_samples_dir, hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, device, bands_dict, n_features, hyperparameters_dict_eval)
+#evaluate_base_density(BD_sim_samples_dir, hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, device, bands_dict, n_features, hyperparameters_dict_eval)
 
 
 
@@ -166,22 +166,26 @@ LEARN SIM -> DAT ON SB
 # Training s2d
 # This will be another (of many) subdirectory in saved_models/
 
-num_layers_s2d = 2
-num_nodes_s2d = 16
+num_stack_s2d = 4
+
+num_hidden_layers_s2d = 2
+num_hidden_features_s2d = 16
+
+num_bins_s2d = 4
+
 hyperparameters_dict_s2d = {"n_epochs": 100,
                           "batch_size": 256,
                           "lr": 0.0005,
-                          "weight_decay": 0.00001}
+                          "weight_decay": 0.0001}
 
 
-loc_id_s2d = f"PRQ_Coupling_{num_layers_s2d}layers_{num_nodes_s2d}nodes_{seed}seed"
+loc_id_s2d = f"PRQ_Coupling_{num_stack_s2d}layers_{num_hidden_layers_s2d}hiddenlayers_{num_hidden_features_s2d}hiddenfeatures_{num_bins_s2d}bins_{seed}seed"
 # training dir is inside the BD dir
 s2d_training_dir = os.path.join(BD_sim_training_dir, f"saved_models_{loc_id_s2d}/")
 s2d_samples_dir = os.path.join(s2d_training_dir, f"npy_samples/")
 
 # Define a flow architecture
-transforms_s2d = make_coupling_flow(num_layers_s2d, n_features, num_nodes_s2d)
-
+transforms_s2d = make_coupling_flow(num_stack_s2d, n_features, num_hidden_features_s2d, num_hidden_layers_s2d, num_bins = num_bins_s2d)
 
 
 flow_BD = torch.load(f"{checkpoint_path_BD_sim}_best_model.pt")
@@ -191,6 +195,8 @@ flow_BD.to(device)
 for param in flow_BD.parameters():
     param.requires_grad = False
 flow_BD.eval()
+
+
 
 # Create and train
 create_and_train_flow("TRANS", s2d_training_dir, transforms_s2d, flow_BD, hyperparameters_dict_s2d, device, dataset_train_dat, dataset_val_dat, early_stop = False, seed = seed)
@@ -205,10 +211,13 @@ EVALUATE SIM -> DAT ON SB
 """
 
 
-make_s2d_samples(["sb1", "sb2"], hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, BD_sim_training_dir, s2d_training_dir, s2d_training_dir, device, bands_dict, n_features, npull_dataset_val_sim, npull_dataset_val_dat, binning_scheme, col_minmax, direct = False)
+make_s2d_samples(["sb1"], hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, BD_sim_training_dir, s2d_training_dir, s2d_training_dir, device, bands_dict, n_features, npull_dataset_val_sim, npull_dataset_val_dat, binning_scheme, col_minmax, direct = False)
+make_s2d_samples(["sb2"], hyperparameters_dict_BD_sim, hyperparameters_dict_s2d, BD_sim_training_dir, s2d_training_dir, s2d_training_dir, device, bands_dict, n_features, npull_dataset_val_sim, npull_dataset_val_dat, binning_scheme, col_minmax, direct = False)
 
 
-evaluate_s2d(["sb1", "sb2"], s2d_samples_dir, s2d_training_dir, hyperparameters_dict_eval, device, bands_dict, n_features)
+evaluate_s2d(["sb1"], s2d_samples_dir, s2d_training_dir, hyperparameters_dict_eval, device, bands_dict, n_features)
+evaluate_s2d(["sb2"], s2d_samples_dir, s2d_training_dir, hyperparameters_dict_eval, device, bands_dict, n_features)
+
 
 """
 "

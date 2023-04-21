@@ -195,7 +195,7 @@ def make_BD_transBD_plots(img_dir, BD_samples, transformed_BD_samples, dat_sampl
 
   
         
-    fig.suptitle("SB1 + SB2")      
+    fig.suptitle(str(bands_to_plot))      
 
     #fig.show()
     pp.savefig()

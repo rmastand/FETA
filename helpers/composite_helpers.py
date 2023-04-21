@@ -33,7 +33,7 @@ def create_and_train_flow(keyword, flow_training_dir, transforms, base_dist, hyp
     model_parameters = filter(lambda p: p.requires_grad, flow.parameters())
     params = sum([np.prod(p.size()) for p in model_parameters]) 
 
-    print(params)   
+    print(f"Model has {params} trainable params.")   
     # Get the number of parameters in the flow
     num_params = 0
     for param in flow.parameters():

@@ -86,7 +86,7 @@ def get_lhco(sim_type, sm='QCDjj_pT'):
         lhco_filename = 'events_anomalydetection_v2.features.h5'
     elif sim_type == 'herwig':
         lhco_filename = 'events_anomalydetection_herwig_features.h5'
-        
+  
     print(lhco_filename)
     df = pd.read_hdf(f'{directory}/{lhco_filename}')
     # make_slim(df, directory, lhco_filename)
