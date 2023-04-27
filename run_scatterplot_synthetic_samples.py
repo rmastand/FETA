@@ -22,10 +22,9 @@ parser.add_argument("-c", "--cuda_slot", help = "CUDA slot")
 args = parser.parse_args()
 
 
-feta_dir = "/global/ml4hep/spss/rrmastandrea"
 
-#scatterplot_dir = os.path.join(feta_dir, "scatterplot_FETA")
-scatterplot_dir = os.path.join(feta_dir, "scatterplot_SSS")
+
+scatterplot_dir = "/global/ml4hep/spss/rrmastandrea/scatterplot_FETA/"
 os.makedirs(scatterplot_dir, exist_ok=True)
 
 scaled_data_dir = "/global/home/users/rrmastandrea/scaled_data/"
@@ -62,22 +61,24 @@ seed = 1
 n_features = 5
 
 index_start = 0
-index_stop = 5
+index_stop = 1
 
 
 eval_feta = True
 eval_cathode = True
 eval_curtains = True
-eval_full_sup = False
+eval_full_sup = True
 eval_salad = True
 eval_combined = False
 
 target_total_events = 10000
 
+
 epochs_NN =  100
-batch_size_NN = 512
+batch_size_NN = 128 # 512
 lr_NN = 0.001
-patience_NN = 5
+patience_NN = 10 
+
 
 
 
@@ -119,7 +120,7 @@ EVAL
 
     
 # load in the data samples
-feta_samples = np.load(f"{scaled_data_dir}/nsig_injected_{args.num_signal_to_inject}/feta_o4.npy")
+feta_samples = np.load(f"{scaled_data_dir}/nsig_injected_{args.num_signal_to_inject}/feta_o6.npy")
 cathode_samples = np.load(f"{scaled_data_dir}/nsig_injected_{args.num_signal_to_inject}/cathode.npy")
 curtains_samples = np.load(f"{scaled_data_dir}/nsig_injected_{args.num_signal_to_inject}/curtains.npy")
 salad_samples = np.load(f"{scaled_data_dir}/nsig_injected_{args.num_signal_to_inject}/salad.npy")
