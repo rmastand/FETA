@@ -276,7 +276,7 @@ def discriminate_datasets_weighted(dir_to_save, idd,
     return auc, outputs
 
 
-def discriminate_for_scatter_kfold(idd, scatterplot_dir, train_samp_1, train_samp_2, weights_samp_1, weights_samp_2, test_samp_1, test_samp_2, n_features, n_epochs, batch_size, lr, patience, device, early_stop = True, visualize = True, seed = None, k_folds = 5):
+def discriminate_for_scatter_kfold(results_dir, idd, train_samp_1, train_samp_2, weights_samp_1, weights_samp_2, test_samp_1, test_samp_2, n_features, n_epochs, batch_size, lr, patience, device, early_stop = True, visualize = True, seed = None, k_folds = 5):
     
     if seed is not None:
         #print(f"Using seed {seed}...")
@@ -311,8 +311,7 @@ def discriminate_for_scatter_kfold(idd, scatterplot_dir, train_samp_1, train_sam
     fold_best_val_losses = []
     
     # K-fold Cross Validation model evaluation
-    for fold, (train_ids, val_ids) in enumerate(kfold.split(X_train)):
-        
+    for fold, (train_ids, val_ids) in enumerate(kfold.split(X_train)):     
     
         # Print
         print(f'FOLD {fold}')
@@ -397,7 +396,7 @@ def discriminate_for_scatter_kfold(idd, scatterplot_dir, train_samp_1, train_sam
                 if np.mean(val_losses_batch_per_e) < val_loss_to_beat:
                     val_loss_to_beat = np.mean(val_losses_batch_per_e)
                     # save the modelnp.rando
-                    model_path = f"{scatterplot_dir}/.{idd}_fold{fold}.pt"
+                    model_path = f"{results_dir}/.{idd}_fold{fold}.pt"
                     torch.save(dense_net, model_path)
                     best_epoch = epoch
 
@@ -406,8 +405,9 @@ def discriminate_for_scatter_kfold(idd, scatterplot_dir, train_samp_1, train_sam
 
             if early_stopping.early_stop:
                 break
-
+        
         print(f"Done training fold {fold}. Best val loss {val_loss_to_beat} at epoch {best_epoch}")
+        """
         if visualize:
             fig, ax = plt.subplots(1, 1, figsize=(7, 5))
             ax.plot(epochs, losses)
@@ -417,6 +417,7 @@ def discriminate_for_scatter_kfold(idd, scatterplot_dir, train_samp_1, train_sam
             ax.set_ylabel("Loss")
             ax.set_title(f"{idd}_fold{fold}")
             fig.show()
+        """
 
         # evaluate
         fold_best_val_losses.append(val_loss_to_beat)
@@ -425,7 +426,7 @@ def discriminate_for_scatter_kfold(idd, scatterplot_dir, train_samp_1, train_sam
     
     # load in the model / fold with the best val loss 
     best_model_index = np.argmin(fold_best_val_losses)
-    best_model_path = f"{scatterplot_dir}/.{idd}_fold{best_model_index}.pt"
+    best_model_path = f"{results_dir}/.{idd}_fold{best_model_index}.pt"
     print(f"Loading in best model for {best_model_path}, val loss {np.min(fold_best_val_losses)} from fold {best_model_index}")
     
     dense_net_eval = torch.load(best_model_path)
@@ -433,8 +434,28 @@ def discriminate_for_scatter_kfold(idd, scatterplot_dir, train_samp_1, train_sam
     # since we're not training, we don't need to calculate the gradients for our outputs
     with torch.no_grad():
         outputs = dense_net_eval(X_test).detach().cpu().numpy()
+        predicted = np.round(outputs)
 
-    return outputs
+        # calculate auc 
+        auc = roc_auc_score(y_test, outputs)
+        fpr, tpr, _ = roc_curve(y_test, outputs)
+
+    if visualize:
+        fig, ax = plt.subplots(1, 1, figsize=(7, 5))
+        ax.plot(fpr, tpr)
+        ax.set_xlabel("FPR")
+        ax.set_ylabel("TPR")
+        ax.set_title("ROC: " + str(auc))
+        fname = f"{results_dir}/roc_{idd}"
+        fig.savefig(fname)
+        
+    np.save(f"{results_dir}/fpr_{idd}", fpr)
+    np.save(f"{results_dir}/tpr_{idd}", tpr)
+        
+    if auc < 0.5:
+        auc = 1.0 - auc
+    
+    return auc, outputs
 
 
 

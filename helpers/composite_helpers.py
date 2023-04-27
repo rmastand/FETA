@@ -186,6 +186,11 @@ def make_base_density_samples(hyperparameters_dict_BD, keyword, flow_training_di
 
     SB_sim_samples, SB_BD_samples = make_BD_samples_dict(["sb1", "sb2"], bands_dict, n_features, dataset_sim, col_minmax, flow_BD, device)
     
+    SB_sim_samples_1, SB_BD_samples_1 = make_BD_samples_dict(["sb1"], bands_dict, n_features, dataset_sim, col_minmax, flow_BD, device)
+    make_sim_BD_sample_plots(flow_training_dir, SB_sim_samples_1, SB_BD_samples_1, binning_scheme, "SB1")
+    SB_sim_samples_2, SB_BD_samples_2 = make_BD_samples_dict(["sb2"], bands_dict, n_features, dataset_sim, col_minmax, flow_BD, device)
+    make_sim_BD_sample_plots(flow_training_dir, SB_sim_samples_2, SB_BD_samples_2, binning_scheme, "SB2")
+    
     # Plot the samples
     make_sim_BD_sample_plots(flow_training_dir, SB_sim_samples, SB_BD_samples, binning_scheme, keyword[2:])
     

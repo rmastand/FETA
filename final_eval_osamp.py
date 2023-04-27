@@ -60,8 +60,8 @@ eval_oversampled = True
 eval_nonsampled = False
 
 
-index_start = 20
-index_stop = 50
+index_start = 16
+index_stop = 20
 
 
 epochs_NN =  100
@@ -81,9 +81,9 @@ bands_dict = {"ob1": [2500, 2900],
 
 binning_scheme = np.linspace(-3.5, 3.5, 50)
 
-results_dir = f"/clusterfs/ml4hep/rrmastandrea/oversampling_results/nsig_inj{args.num_signal_to_inject}_seed{seed}/"
+results_dir = f"/clusterfs/ml4hep/rrmastandrea/oversampling_results_8_2_32_10/nsig_inj{args.num_signal_to_inject}_seed{seed}/"
 os.makedirs(results_dir, exist_ok=True)
-scaled_data_dir = "/global/home/users/rrmastandrea/oversamp_studies/"
+scaled_data_dir = "/global/home/users/rrmastandrea/oversamp_studies_8_2_32_10/"
 
 
 
@@ -115,6 +115,8 @@ EVAL
     
 # load in the data samples
 feta_samples_osamp = np.load(f"{scaled_data_dir}/nsig_injected_{args.num_signal_to_inject}/feta_o{args.oversampled_num}.npy")
+#feta_samples_osamp= np.load(f"{scaled_data_dir}/nsig_injected_{args.num_signal_to_inject}/feta.npy")
+
 feta_samples_nonsamp = np.load(f"{scaled_data_dir}/nsig_injected_{args.num_signal_to_inject}/feta.npy")
 
 

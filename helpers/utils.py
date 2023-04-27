@@ -41,7 +41,7 @@ class EarlyStopping():
     Early stopping to stop the training when the loss does not improve after
     certain epochs.
     """
-    def __init__(self, patience=5, min_delta=0, verbose = False):
+    def __init__(self, patience=20, min_delta=0, verbose = False):
         """
         :param patience: how many epochs to wait before stopping when loss is
                not improving
