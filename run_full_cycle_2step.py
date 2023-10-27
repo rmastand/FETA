@@ -19,8 +19,7 @@ COMPUTING PARAMETERS
 """
 """
 """
-
-os.environ["CUDA_VISIBLE_DEVICES"]="3"
+os.environ["CUDA_VISIBLE_DEVICES"]="2"
 
 device = cuda.get_current_device()
 device.reset()
@@ -32,9 +31,9 @@ torch.set_num_threads(2)
 device = torch.device( "cuda" if torch.cuda.is_available() else "cpu")
 print( "Using device: " + str( device ), flush=True)
 
-seed = 1
-oversample = 4
-num_signal_to_inject = 1000
+seed = 2
+oversample = 6
+num_signal_to_inject = 3000
 
 
 """
@@ -48,7 +47,7 @@ RUN PARAMETERS
 hyperparameters_dict_eval = {"n_epochs": 100,
                           "batch_size": 128,
                           "lr": 0.001,
-                           "patience": 20
+                           "patience": 10
                             }
 
 
@@ -58,30 +57,40 @@ feta_dir = "/global/home/users/rrmastandrea/FETA/"
 
 n_features = 5
 
-dataset_config_string = f"LHCO_{num_signal_to_inject}sig_f/"
-STS_config_sting = f"LHCO_STS/"
+project_id = "3prong"
+#dataset_config_string = f"LHCO_{num_signal_to_inject}sig_f/"
+dataset_config_string = f"LHCO_{num_signal_to_inject}sig_{project_id}/"
 
 exp_dir = os.path.join(feta_dir, dataset_config_string)
+
+#data_dir = f"/global/ml4hep/spss/rrmastandrea/synthsamp_LHCOinput_{project_id}/nsig_{num_signal_to_inject}/data/"
 data_dir = os.path.join(exp_dir, "data")
+
 
 print("Making results directory at", exp_dir, "...")
 os.makedirs(exp_dir, exist_ok=True)
 
 # load in the reverse rescales
-path_to_minmax = f"{feta_dir}/LHCO_STS/data/col_minmax.npy"
+path_to_minmax = f"{feta_dir}/LHCO_STS_{project_id}/data/col_minmax.npy"
 col_minmax = np.load(path_to_minmax)
 
 
 # dataset generation parameters
+"""
 context_endpoints = (2500, 4500)
-
-
 bands_dict = {"ob1": [2500, 2900],
               "sb1": [2900, 3300],
               "sr" : [3300, 3700],
               "sb2": [3700, 4100],
-              "ob2": [4100, 4500]}
+            "ob2": [4100, 4500]}
+              """
 
+context_endpoints = (1500, 5500)
+
+bands_dict = {"sb1": [1500, 3300],
+              "sr" : [3300, 3700],
+              "sb2": [3700, 5500]  }            
+              
 binning_scheme = np.linspace(-3.5, 3.5, 50)
 
 
@@ -147,12 +156,11 @@ transforms_BD_sim = make_masked_AR_flow(num_layers_BD_sim, n_features, num_hidde
 base_dist_sim = StandardNormal(shape=[n_features])
 
 # Create and train
-#create_and_train_flow("BDSIM", BD_sim_training_dir, transforms_BD_sim, base_dist_sim, hyperparameters_dict_BD_sim, device, dataset_train_sim, dataset_val_sim, early_stop = False, seed = seed)
+create_and_train_flow("BDSIM", BD_sim_training_dir, transforms_BD_sim, base_dist_sim, hyperparameters_dict_BD_sim, device, dataset_train_sim, dataset_val_sim, early_stop = False, seed = seed)
 
-#make_base_density_samples(hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, BD_sim_samples_dir, device, bands_dict, n_features, npull_dataset_val_sim, binning_scheme, col_minmax)
+make_base_density_samples(hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, BD_sim_samples_dir, device, bands_dict, n_features, npull_dataset_val_sim, binning_scheme, col_minmax)
 
-#evaluate_base_density(BD_sim_samples_dir, hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, device, bands_dict, n_features, hyperparameters_dict_eval)
-
+evaluate_base_density(BD_sim_samples_dir, hyperparameters_dict_BD_sim, "BDSIM", BD_sim_training_dir, device, bands_dict, n_features, hyperparameters_dict_eval)
 
 
 """
@@ -166,14 +174,13 @@ LEARN SIM -> DAT ON SB
 # Training s2d
 # This will be another (of many) subdirectory in saved_models/
 
-num_stack_s2d = 4
-
+num_stack_s2d = 8
 num_hidden_layers_s2d = 2
-num_hidden_features_s2d = 16
+num_hidden_features_s2d = 32
+num_bins_s2d = 10
+early_stop = False
 
-num_bins_s2d = 4
-
-hyperparameters_dict_s2d = {"n_epochs": 100,
+hyperparameters_dict_s2d = {"n_epochs": 50,
                           "batch_size": 256,
                           "lr": 0.0005,
                           "weight_decay": 0.0001}
@@ -199,7 +206,7 @@ flow_BD.eval()
 
 
 # Create and train
-create_and_train_flow("TRANS", s2d_training_dir, transforms_s2d, flow_BD, hyperparameters_dict_s2d, device, dataset_train_dat, dataset_val_dat, early_stop = False, seed = seed)
+create_and_train_flow("TRANS", s2d_training_dir, transforms_s2d, flow_BD, hyperparameters_dict_s2d, device, dataset_train_dat, dataset_val_dat, early_stop = early_stop, seed = seed)
 
 
 """
