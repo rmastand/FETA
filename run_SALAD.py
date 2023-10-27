@@ -21,33 +21,45 @@ from scipy import interpolate
 import math
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="3"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
+seed = 2
+num_signal_to_inject = 1500
+project_id = "wide"
+
+np.random.seed(seed)
+tf.random.set_seed(seed)
+
+
 
 gpu_options = tf.compat.v1.GPUOptions(per_process_gpu_memory_fraction=0.5)
 sess = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(gpu_options=gpu_options))
 
 # directory setup
 
-num_signal_to_inject = 0
+
 
 n_features = 5 # Note that the SALAD network will also use the mass feature
 
-bands_dict = {"ob1": [2500, 2900],
-              "sb1": [2900, 3300],
+
+context_endpoints = (1500, 5500)
+
+bands_dict = {"sb1": [1500, 3300],
               "sr" : [3300, 3700],
-              "sb2": [3700, 4100],
-              "ob2": [4100, 4500]}
+              "sb2": [3700, 5500]  }  
 
 binning_scheme = np.linspace(-3.5, 3.5, 50)
 
+
+
 feta_dir = "/global/home/users/rrmastandrea/FETA/"
-dataset_config_string = f"LHCO_{num_signal_to_inject}sig_f"
-path_to_minmax = f"{feta_dir}/LHCO_STS/data/col_minmax.npy"
+dataset_config_string = f"LHCO_{num_signal_to_inject}sig_{project_id}"
+path_to_minmax = f"{feta_dir}/LHCO_STS_{project_id}/data/col_minmax.npy"
 col_minmax = np.load(path_to_minmax)
 
     
 exp_dir = os.path.join(feta_dir, dataset_config_string)
-data_dir = os.path.join(exp_dir, "data")
+#data_dir = os.path.join(exp_dir, "data")
+data_dir = f"/global/ml4hep/spss/rrmastandrea/synthsamp_LHCOinput_{project_id}/nsig_{num_signal_to_inject}/data/"
 
 
 """
@@ -185,7 +197,7 @@ PATIENCE = 10
 BATCH_SIZE = 256
 
 earlyStopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=PATIENCE, verbose=0, mode='min')
-mcp_save = tf.keras.callbacks.ModelCheckpoint(f'SALAD_models/{num_signal_to_inject}.mdl_wts.hdf5', save_best_only=True, monitor='val_loss', mode='min')
+mcp_save = tf.keras.callbacks.ModelCheckpoint(f'SALAD_models_{project_id}/{num_signal_to_inject}.mdl_wts.hdf5', save_best_only=True, monitor='val_loss', mode='min')
 reduce_lr_loss = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=PATIENCE, verbose=1, epsilon=1e-7, mode='min')
 
 
@@ -199,7 +211,7 @@ print("Done training!")
 
 # Load in the best weights
 
-model_SALAD_sb.load_weights(f'SALAD_models/{num_signal_to_inject}.mdl_wts.hdf5')
+model_SALAD_sb.load_weights(f'SALAD_models_{project_id}/{num_signal_to_inject}.mdl_wts.hdf5')
 print("Evaluating at best val loss epoch:", np.argmin(hist_SALAD_sb.history['val_loss']))
 
 plot_weights = get_weights(dataset_sr_sim, model_SALAD_sb)
@@ -207,7 +219,8 @@ plot_weights = get_weights(dataset_sr_sim, model_SALAD_sb)
 
 # save out
 
-scaled_data_dir = "/global/home/users/rrmastandrea/scaled_data/"
+#scaled_data_dir = f"/global/home/users/rrmastandrea/scaled_data_{project_id}_seed_{seed}/"
+scaled_data_dir = f"/global/ml4hep/spss/rrmastandrea/synth_SM_AD/scaled_data_{project_id}_seed_{seed}/"
 
 np.save(f"{scaled_data_dir}/nsig_injected_{num_signal_to_inject}/salad", dataset_sr_sim)
 np.save(f"{scaled_data_dir}/nsig_injected_{num_signal_to_inject}/salad_weights", plot_weights)

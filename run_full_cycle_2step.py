@@ -19,7 +19,7 @@ COMPUTING PARAMETERS
 """
 """
 """
-os.environ["CUDA_VISIBLE_DEVICES"]="2"
+os.environ["CUDA_VISIBLE_DEVICES"]="3"
 
 device = cuda.get_current_device()
 device.reset()
@@ -33,7 +33,7 @@ print( "Using device: " + str( device ), flush=True)
 
 seed = 2
 oversample = 6
-num_signal_to_inject = 3000
+num_signal_to_inject = 1500
 
 
 """
@@ -76,14 +76,7 @@ col_minmax = np.load(path_to_minmax)
 
 
 # dataset generation parameters
-"""
-context_endpoints = (2500, 4500)
-bands_dict = {"ob1": [2500, 2900],
-              "sb1": [2900, 3300],
-              "sr" : [3300, 3700],
-              "sb2": [3700, 4100],
-            "ob2": [4100, 4500]}
-              """
+
 
 context_endpoints = (1500, 5500)
 
