@@ -78,22 +78,6 @@ batch_size_NN = 128
 lr_NN = 0.001
 patience_NN = 10 
 
-
-context_endpoints = (2500, 4500)
-
-
-bands_dict = {"ob1": [2500, 2900],
-              "sb1": [2900, 3300],
-              "sr" : [3300, 3700],
-              "sb2": [3700, 4100],
-              "ob2": [4100, 4500]}
-
-binning_scheme = np.linspace(-3.5, 3.5, 50)
-
-
-
-
-
 """
 """
 """

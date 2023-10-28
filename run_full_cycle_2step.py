@@ -9,7 +9,13 @@ import torch
 import os
 from numba import cuda 
 
+
 from helpers.composite_helpers import *
+
+import yaml
+with open("workflow.yaml", "r") as file:
+    workflow = yaml.safe_load(file)
+
 
 
 """
@@ -57,7 +63,9 @@ feta_dir = "/global/home/users/rrmastandrea/FETA/"
 
 n_features = 5
 
-project_id = "3prong"
+project_id = workflow["project_id"]
+bands_dict = workflow["bands_dict"]
+
 #dataset_config_string = f"LHCO_{num_signal_to_inject}sig_f/"
 dataset_config_string = f"LHCO_{num_signal_to_inject}sig_{project_id}/"
 
@@ -74,16 +82,6 @@ os.makedirs(exp_dir, exist_ok=True)
 path_to_minmax = f"{feta_dir}/LHCO_STS_{project_id}/data/col_minmax.npy"
 col_minmax = np.load(path_to_minmax)
 
-
-# dataset generation parameters
-
-
-context_endpoints = (1500, 5500)
-
-bands_dict = {"sb1": [1500, 3300],
-              "sr" : [3300, 3700],
-              "sb2": [3700, 5500]  }            
-              
 binning_scheme = np.linspace(-3.5, 3.5, 50)
 
 

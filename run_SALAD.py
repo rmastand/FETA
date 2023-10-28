@@ -20,11 +20,17 @@ from keras import backend as K
 from scipy import interpolate
 import math
 
+import yaml
+with open("workflow.yaml", "r") as file:
+    workflow = yaml.safe_load(file)
+
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
+os.environ["CUDA_VISIBLE_DEVICES"]="2"
 seed = 2
-num_signal_to_inject = 1500
-project_id = "wide"
+num_signal_to_inject = 3000
+
+project_id = workflow["project_id"]
+bands_dict = workflow["bands_dict"]
 
 np.random.seed(seed)
 tf.random.set_seed(seed)
@@ -39,17 +45,6 @@ sess = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(gpu_options=gpu_opti
 
 
 n_features = 5 # Note that the SALAD network will also use the mass feature
-
-
-context_endpoints = (1500, 5500)
-
-bands_dict = {"sb1": [1500, 3300],
-              "sr" : [3300, 3700],
-              "sb2": [3700, 5500]  }  
-
-binning_scheme = np.linspace(-3.5, 3.5, 50)
-
-
 
 feta_dir = "/global/home/users/rrmastandrea/FETA/"
 dataset_config_string = f"LHCO_{num_signal_to_inject}sig_{project_id}"

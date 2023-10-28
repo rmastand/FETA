@@ -1,0 +1,6 @@
+project_id: 3prong
+context_endpoints: [1500, 5500]
+bands_dict:
+    sb1: [1500, 3300]
+    sr:  [3300, 3700]
+    sb2: [3700, 5500]   
