@@ -27,7 +27,7 @@ Use the notebook ```make_sig_rej_plots.ipynb```.
 
 ## Other comments
 
-The notebook ```paper_plots.ipynb``` contains code to generate the "prettier" schematics. 
+The folder ```auxiliary plots``` contains code to generate the "prettier" schematics. 
 
 To make the scatterplots of classifier scores for the different background construction methods (Figs 10 and 11 in the main paper), run ```run_scatter_plot.py``` to process the data, then ```analyze_scatterplot.ipynb``` to make the visualizations.
 
